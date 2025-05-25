@@ -2,7 +2,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const httpStatus = require('http-status');
-const { Course, CourseCategory } = require('./course.model');
+const { Course, CourseCategory, SubCategory } = require('./course.model');
 const APIFeatures = require('../../utils/APIFeatures');
 const User = require('../../models/user.model'); // Assuming User model exists
 const Profile = require('../Profile/profile.model');
@@ -157,14 +157,53 @@ const verifyCourseAccess = async (userId, courseId) => {
 
 // Course Category
 
-const getAllCourseCategories = async () => {
-  return await CourseCategory.find();
+const getAllCategories = async () => {
+  return CourseCategory.find({}).populate('subCategoriesDetails');
 };
 
-const createCourseCategory = async (courseData) => {
-  const newCategory = new CourseCategory(courseData);
-  return await newCategory.save();
+const createCategory = async (categoryBody) => {
+  const category = await CourseCategory.findOne({ name: categoryBody.name });
+
+  if (category) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Category already exists');
+  }
+  return CourseCategory.create(categoryBody);
 };
+
+const getSubCategories = async (categoryId) => {
+  const category = await CourseCategory.findById(categoryId).populate('subCategoriesDetails');
+  if (!category) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Category not found');
+  }
+  return category.subCategoriesDetails;
+};
+
+const createSubCategory = async ({ categoryId, name }) => {
+  const category = await CourseCategory.findById(categoryId);
+  if (!category) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Parent category not found');
+  }
+
+  const subCategory = await SubCategory.create({
+    name,
+    parentCategory: categoryId,
+  });
+
+  // Add subcategory to parent
+  category.subCategories.push(subCategory._id);
+  await category.save();
+
+  return subCategory;
+};
+
+// const getAllCourseCategories = async () => {
+//   return await CourseCategory.find();
+// };
+
+// const createCourseCategory = async (courseData) => {
+//   const newCategory = new CourseCategory(courseData);
+//   return await newCategory.save();
+// };
 
 module.exports = {
   // ADMIN
@@ -173,10 +212,13 @@ module.exports = {
   getCourseBySlugOrId,
   createCourse,
   applyForCourse,
-  getAllCourseCategories,
-  createCourseCategory,
   deleteCourse,
   updateCourse,
   sendFileDirectly,
   verifyCourseAccess,
+  // categories
+  getAllCategories,
+  createCategory,
+  getSubCategories,
+  createSubCategory,
 };

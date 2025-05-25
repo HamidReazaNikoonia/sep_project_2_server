@@ -1,6 +1,9 @@
 const express = require('express');
 const courseController = require('./course.controller');
 const auth = require('../../middlewares/auth');
+const validate = require('../../middlewares/validate');
+
+const { courseCategoryValidation } = require('./course.validation');
 
 const router = express.Router();
 
@@ -11,8 +14,18 @@ router.route('/admin').get(auth(), courseController.getAllCoursesForAdmin);
 
 router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE
 
-router.route('/category').get(courseController.getAllCourseCategories).post(courseController.createCourseCategory);
+// Route Category
+router
+  .route('/category')
+  .get(courseController.getAllCategories)
+  .post(validate(courseCategoryValidation.createCategory), courseController.createCategory);
 
+router
+  .route('/category/:categoryId/subcategories')
+  .get(courseController.getSubCategories)
+  .post(validate(courseCategoryValidation.createSubCategory), courseController.createSubCategory);
+
+/// ///////
 router.get('/:slug', courseController.getCourseBySlugOrId);
 
 // Update a course

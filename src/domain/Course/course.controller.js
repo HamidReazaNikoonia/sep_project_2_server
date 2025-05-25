@@ -135,30 +135,76 @@ const getCoursePrivateFile = catchAsync(async (req, res) => {
 
 // Course  Category
 
-
-const getAllCourseCategories = catchAsync(async (req, res) => {
-  const courseCategory = await courseService.getAllCourseCategories();
-  res.status(httpStatus.OK).send(courseCategory);
+const getAllCategories = catchAsync(async (req, res) => {
+  const categories = await courseService.getAllCategories();
+  res.status(httpStatus.OK).send(categories);
 });
 
 
-const createCourseCategory = catchAsync(async (req, res) => {
-  const newCourseCategory = await courseService.createCourseCategory(req.body);
-  res.status(httpStatus.CREATED).send(newCourseCategory);
+const createCategory = catchAsync(async (req, res) => {
+  const category = await courseService.createCategory(req.body);
+  res.status(httpStatus.CREATED).send(category);
 });
+
+
+const getSubCategories = catchAsync(async (req, res) => {
+
+  const { categoryId } = req.params;
+  if (!categoryId || !mongoose.Types.ObjectId.isValid(categoryId)) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Category not found or not valid');
+  }
+
+  const subCategories = await courseService.getSubCategories(categoryId);
+  if (!subCategories) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Category not found');
+  }
+  res.status(httpStatus.OK).send(subCategories);
+});
+
+
+
+const createSubCategory = catchAsync(async (req, res) => {
+
+   const { categoryId } = req.params;
+  if (!categoryId || !mongoose.Types.ObjectId.isValid(categoryId)) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Category not found or not valid');
+  }
+
+  const subCategory = await courseService.createSubCategory({
+    categoryId: categoryId,
+    name: req.body.name
+  });
+  res.status(httpStatus.CREATED).send(subCategory);
+});
+
+
+
+// const getAllCourseCategories = catchAsync(async (req, res) => {
+//   const courseCategory = await courseService.getAllCourseCategories();
+//   res.status(httpStatus.OK).send(courseCategory);
+// });
+
+
+// const createCourseCategory = catchAsync(async (req, res) => {
+//   const newCourseCategory = await courseService.createCourseCategory(req.body);
+//   res.status(httpStatus.CREATED).send(newCourseCategory);
+// });
 
 
 module.exports = {
   // admin
   getAllCoursesForAdmin,
-
   getAllCourses,
   getCourseBySlugOrId,
   createCourse,
   applyForCourse,
-  getAllCourseCategories,
-  createCourseCategory,
   updateCourse,
   deleteCourse,
-  getCoursePrivateFile
+  getCoursePrivateFile,
+  // categories
+  getAllCategories,
+  createCategory,
+  getSubCategories,
+  createSubCategory
+
 };

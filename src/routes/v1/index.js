@@ -10,7 +10,7 @@ const consultRoute = require('../../domain/Consult/consult.route');
 const courseRoute = require('../../domain/Course/course.route');
 const coachRoute = require('../../domain/Coach/coach.route');
 const profileRoute = require('../../domain/Profile/profile.route');
-
+const courseSessionRoute = require('../../domain/Course_Session/courseSession.route');
 const {
   adminRouter: productAdminRoute,
   publicRouter: productPublicRoute,
@@ -68,6 +68,10 @@ const defaultRoutes = [
   {
     path: '/course',
     route: courseRoute,
+  },
+  {
+    path: '/course-session',
+    route: courseSessionRoute,
   },
   {
     path: '/coach',

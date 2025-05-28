@@ -70,36 +70,82 @@ const validateNewSessions = async (sessions, courseCoaches) => {
 };
 
 // Helper function to handle complex coaches/sessions updates
-const handleCoachesAndSessions = async (course, updateData) => {
-  // Handle new coaches assignment
-  if (updateData.coaches) {
-    // Validate all coaches exist
-    const coaches = await Coach.find({ _id: { $in: updateData.coaches } });
-    if (coaches.length !== updateData.coaches.length) {
+// const handleCoachesAndSessions = async (course, updateData) => {
+//   // Handle new coaches assignment
+//   if (updateData.coaches) {
+//     // Validate all coaches exist
+//     const coaches = await Coach.find({ _id: { $in: updateData.coaches } });
+//     if (coaches.length !== updateData.coaches.length) {
+//       throw new ApiError(httpStatus.BAD_REQUEST, 'One or more coaches not found');
+//     }
+//     // eslint-disable-next-line no-param-reassign
+//     course.coaches = updateData.coaches;
+//   }
+
+//   // Handle sessions updates
+//   if (updateData.sessions) {
+//     const { sessionsToAdd, sessionsToUpdate } = processSessionUpdates(course.sessions, updateData.sessions);
+
+//     // Validate new sessions
+//     await validateNewSessions(sessionsToAdd, course.coaches);
+
+//     // Update existing sessions
+//     sessionsToUpdate.forEach((updatedSession) => {
+//       const existingSession = course.sessions.id(updatedSession._id);
+//       if (existingSession) {
+//         existingSession.set(updatedSession);
+//       }
+//     });
+
+//     // Add new sessions
+//     course.sessions.push(...sessionsToAdd);
+//   }
+// };
+
+// Handle coaches update and clean up related sessions
+const handleCoachesUpdate = async (course, updateData) => {
+  const newCoaches = updateData.coaches;
+
+  // If coaches array is being cleared or modified
+  if (Array.isArray(newCoaches)) {
+    // Validate all new coaches exist
+    const coaches = await Coach.find({ _id: { $in: newCoaches } });
+    if (coaches.length !== newCoaches.length) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'One or more coaches not found');
     }
+
+    // Find removed coaches
+    const removedCoaches = course.coaches.filter((coachId) => !newCoaches.includes(coachId.toString()));
+
+    // Remove sessions belonging to removed coaches
+    if (removedCoaches.length > 0) {
+      // eslint-disable-next-line no-param-reassign
+      course.sessions = course.sessions.filter((session) => !removedCoaches.includes(session.coach.toString()));
+    }
+
+    // Update course coaches
     // eslint-disable-next-line no-param-reassign
-    course.coaches = updateData.coaches;
+    course.coaches = newCoaches;
   }
+};
 
-  // Handle sessions updates
-  if (updateData.sessions) {
-    const { sessionsToAdd, sessionsToUpdate } = processSessionUpdates(course.sessions, updateData.sessions);
+// Handle sessions updates (existing implementation)
+const handleSessionsUpdate = async (course, updateData) => {
+  const { sessionsToAdd, sessionsToUpdate } = processSessionUpdates(course.sessions, updateData.sessions);
 
-    // Validate new sessions
-    await validateNewSessions(sessionsToAdd, course.coaches);
+  // Validate new sessions
+  await validateNewSessions(sessionsToAdd, course.coaches);
 
-    // Update existing sessions
-    sessionsToUpdate.forEach((updatedSession) => {
-      const existingSession = course.sessions.id(updatedSession._id);
-      if (existingSession) {
-        existingSession.set(updatedSession);
-      }
-    });
+  // Update existing sessions
+  sessionsToUpdate.forEach((updatedSession) => {
+    const existingSession = course.sessions.id(updatedSession._id);
+    if (existingSession) {
+      existingSession.set(updatedSession);
+    }
+  });
 
-    // Add new sessions
-    course.sessions.push(...sessionsToAdd);
-  }
+  // Add new sessions
+  course.sessions.push(...sessionsToAdd);
 };
 
 // Security helper function
@@ -222,25 +268,30 @@ const updateCourse = async (courseId, updateData) => {
   // 2. Prepare update object (excluding restricted fields)
   const { members, course_views, ...allowedUpdates } = updateData;
 
-  // 3. Handle coaches and sessions updates
-  if (allowedUpdates.sessions || allowedUpdates.coaches) {
-    await handleCoachesAndSessions(course, allowedUpdates);
+  // 3. Handle coaches removal and related sessions
+  if (allowedUpdates.coaches !== undefined) {
+    await handleCoachesUpdate(course, allowedUpdates);
   }
 
-  // 4. Update other fields
+  // 4. Handle sessions updates
+  if (allowedUpdates.sessions) {
+    await handleSessionsUpdate(course, allowedUpdates);
+  }
+
+  // 5. Update other fields
   Object.keys(allowedUpdates).forEach((key) => {
     if (key !== 'sessions' && key !== 'coaches') {
       course[key] = allowedUpdates[key];
     }
   });
 
-  // 5. Save and return updated course
+  // 6. Save and return updated course
   await course.save();
   return course;
 };
 
 const deleteCourse = async (courseId) => {
-  const course = await Course.findById(courseId);
+  const course = await CourseSession.findById(courseId);
   if (!course) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Course not found');
   }
@@ -292,20 +343,20 @@ const verifyCourseAccess = async (userId, courseId) => {
 // Course Category
 
 const getAllCategories = async () => {
-  return CourseCategory.find({}).populate('subCategoriesDetails');
+  return CourseSessionCategory.find({}).populate('subCategoriesDetails');
 };
 
 const createCategory = async (categoryBody) => {
-  const category = await CourseCategory.findOne({ name: categoryBody.name });
+  const category = await CourseSessionCategory.findOne({ name: categoryBody.name });
 
   if (category) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Category already exists');
   }
-  return CourseCategory.create(categoryBody);
+  return CourseSessionCategory.create(categoryBody);
 };
 
 const getSubCategories = async (categoryId) => {
-  const category = await CourseCategory.findById(categoryId).populate('subCategoriesDetails');
+  const category = await CourseSessionCategory.findById(categoryId).populate('subCategoriesDetails');
   if (!category) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Category not found');
   }
@@ -313,12 +364,12 @@ const getSubCategories = async (categoryId) => {
 };
 
 const createSubCategory = async ({ categoryId, name }) => {
-  const category = await CourseCategory.findById(categoryId);
+  const category = await CourseSessionCategory.findById(categoryId);
   if (!category) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Parent category not found');
   }
 
-  const subCategory = await SubCategory.create({
+  const subCategory = await CourseSessionSubCategory.create({
     name,
     parentCategory: categoryId,
   });

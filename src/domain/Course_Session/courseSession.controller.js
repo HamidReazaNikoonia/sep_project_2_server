@@ -5,18 +5,15 @@ const catchAsync = require('../../utils/catchAsync');
 const ApiError = require('../../utils/ApiError');
 const pick = require('../../utils/pick');
 
-
 const courseSesshionService = require('./courseSession.service');
 
 // models
 const Coach = require('../Coach/coach.model');
-const { CourseSession }  = require('./courseSession.model');
-const Upload = require('../../services/uploader/uploader.model');
-
+const { CourseSession } = require('./courseSession.model');
+// const Upload = require('../../services/uploader/uploader.model');
 
 // ADMIN
 const getAllCoursesSessionForAdmin = catchAsync(async (req, res) => {
-
   // if (!req.user) {
   //   throw new ApiError(httpStatus.NOT_FOUND, 'User Not Exist');
   // }
@@ -30,23 +27,21 @@ const getAllCoursesSessionForAdmin = catchAsync(async (req, res) => {
 });
 
 const getAllCourses = catchAsync(async (req, res) => {
-  const courses = await courseSesshionService.getAllCourses({query: req.query});
+  const courses = await courseSesshionService.getAllCourses({ query: req.query });
   res.status(httpStatus.OK).send(courses);
 });
 
 const getCourseBySlugOrId = catchAsync(async (req, res) => {
-
   const { slug } = req.params;
 
   if (!slug) throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Course ID or Slug');
 
-  const isObjectId = mongoose.Types.ObjectId.isValid(req.params?.slug) &&
-                   new mongoose.Types.ObjectId(req.params?.slug).toString() === req.params?.slug;
+  const isObjectId =
+    mongoose.Types.ObjectId.isValid(req.params.slug) &&
+    new mongoose.Types.ObjectId(req.params.slug).toString() === req.params.slug;
 
-  console.log({identifier: mongoose.Types.ObjectId.isValid(req.params?.slug)})
-  const identifier = isObjectId
-    ? { _id: slug }
-    : { slug };
+  // console.log({ identifier: mongoose.Types.ObjectId.isValid(req.params.slug) });
+  const identifier = isObjectId ? { _id: slug } : { slug };
 
   const course = await courseSesshionService.getCourseBySlugOrId(identifier);
   res.status(httpStatus.OK).send(course);
@@ -60,30 +55,29 @@ const createCourseSession = catchAsync(async (req, res) => {
   }
 
   // Validate session coaches are in the course coaches list
-  const invalidSessions = req.body.sessions.filter(
-    session => !req.body.coaches.includes(session.coach)
-  );
+  const invalidSessions = req.body.sessions.filter((session) => !req.body.coaches.includes(session.coach));
   if (invalidSessions.length > 0) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Session coach must be assigned to course');
   }
 
   // Check for coach scheduling conflicts
-  await Promise.all(req.body.sessions.map(async (session) => {
-    const isAvailable = await courseSesshionService.checkCoachAvailability(
-      session.coach,
-      session.date,
-      session.startTime,
-      session.endTime
-    );
-    if (!isAvailable) {
-      throw new ApiError(httpStatus.CONFLICT, `Coach ${session.coach} has scheduling conflict`);
-    }
-  }));
+  await Promise.all(
+    req.body.sessions.map(async (session) => {
+      const isAvailable = await courseSesshionService.checkCoachAvailability(
+        session.coach,
+        session.date,
+        session.startTime,
+        session.endTime
+      );
+      if (!isAvailable) {
+        throw new ApiError(httpStatus.CONFLICT, `Coach ${session.coach} has scheduling conflict`);
+      }
+    })
+  );
 
   const course = await CourseSession.create(req.body);
   res.status(httpStatus.CREATED).send(course);
 });
-
 
 const updateCourse = catchAsync(async (req, res) => {
   const courseSessionId = req.params.course_id;
@@ -96,138 +90,123 @@ const updateCourse = catchAsync(async (req, res) => {
 const deleteCourse = catchAsync(async (req, res) => {
   const courseId = req.params.course_id;
 
-  await courseService.deleteCourse(courseId);
+  await courseSesshionService.deleteCourse(courseId);
   res.status(httpStatus.NO_CONTENT).send();
 });
 
-
-
 // Get Private Course files
 
+// const getCoursePrivateFile = catchAsync(async (req, res) => {
+//   const { fileId } = req.params;
+//   const userId = req.user?.id; // From authentication middleware
 
-const getCoursePrivateFile = catchAsync(async (req, res) => {
-  const { fileId } = req.params;
-  const userId = req.user?.id; // From authentication middleware
+//   if (!userId || !fileId) {
+//     throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
+//   }
 
-  if (!userId || !fileId) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
-  }
+//   // Find the file metadata
+//   const fileDoc = await Upload.findById(fileId);
+//   if (!fileDoc) {
+//     throw new ApiError(httpStatus.NOT_FOUND, 'File not found');
+//   }
 
-  // Find the file metadata
-  const fileDoc = await Upload.findById(fileId);
-  if (!fileDoc) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'File not found');
-  }
+//   // Find the associated course
+//   const course = await Course.findOne({
+//     'course_objects.files': fileId
+//   }).populate('course_objects.files');
 
-  // Find the associated course
-  const course = await Course.findOne({
-    'course_objects.files': fileId
-  }).populate('course_objects.files');
+//   if (!course) {
+//     throw new ApiError(httpStatus.NOT_FOUND, 'Course not found');
+//   }
 
-  if (!course) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Course not found');
-  }
+//   // Find the specific course object
+//   const courseObject = course.course_objects.find(obj =>
+//     obj.files._id.equals(fileId)
+//   );
 
-  // Find the specific course object
-  const courseObject = course.course_objects.find(obj =>
-    obj.files._id.equals(fileId)
-  );
+//   //  Check file accessibility
+//   if (courseObject.status === 'PUBLIC') {
+//     // return file if it PUBLIC
+//     return courseService.sendFileDirectly(res, fileDoc.file_name);
+//   }
 
-  //  Check file accessibility
-  if (courseObject.status === 'PUBLIC') {
-    // return file if it PUBLIC
-    return courseService.sendFileDirectly(res, fileDoc.file_name);
-  }
+//   //  Verify user access for private files
+//   const hasAccess = await courseService.verifyCourseAccess(userId, course._id);
 
-  //  Verify user access for private files
-  const hasAccess = await courseService.verifyCourseAccess(userId, course._id);
+//   if (!hasAccess) {
+//       throw new ApiError(httpStatus[403], 'Access denied');
+//   }
 
+//   //  Send the file if all checks pass
+//   courseService.sendFileDirectly(res, fileDoc.file_name);
 
-  if (!hasAccess) {
-      throw new ApiError(httpStatus[403], 'Access denied');
-  }
-
-  //  Send the file if all checks pass
-  courseService.sendFileDirectly(res, fileDoc.file_name);
-
-});
+// });
 
 // Course  Category
 
 const getAllCategories = catchAsync(async (req, res) => {
-  const categories = await courseService.getAllCategories();
+  const categories = await courseSesshionService.getAllCategories();
   res.status(httpStatus.OK).send(categories);
 });
 
-
 const createCategory = catchAsync(async (req, res) => {
-  const category = await courseService.createCategory(req.body);
+  const category = await courseSesshionService.createCategory(req.body);
   res.status(httpStatus.CREATED).send(category);
 });
 
-
 const getSubCategories = catchAsync(async (req, res) => {
-
   const { categoryId } = req.params;
   if (!categoryId || !mongoose.Types.ObjectId.isValid(categoryId)) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Category not found or not valid');
   }
 
-  const subCategories = await courseService.getSubCategories(categoryId);
+  const subCategories = await courseSesshionService.getSubCategories(categoryId);
   if (!subCategories) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Category not found');
   }
   res.status(httpStatus.OK).send(subCategories);
 });
 
-
-
 const createSubCategory = catchAsync(async (req, res) => {
-
-   const { categoryId } = req.params;
+  const { categoryId } = req.params;
   if (!categoryId || !mongoose.Types.ObjectId.isValid(categoryId)) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Category not found or not valid');
   }
 
-  const subCategory = await courseService.createSubCategory({
-    categoryId: categoryId,
-    name: req.body.name
+  const subCategory = await courseSesshionService.createSubCategory({
+    categoryId,
+    name: req.body.name,
   });
   res.status(httpStatus.CREATED).send(subCategory);
 });
 
-
-
 // public
 // User (Students) Controllers
 
-const applyForCourse = catchAsync(async (req, res) => {
-  const { course_id } = req.params;
-  const { user_id } = req.body;
+// const applyForCourse = catchAsync(async (req, res) => {
+//   const { course_id } = req.params;
+//   const { user_id } = req.body;
 
-  const updatedCourse = await courseService.applyForCourse({
-    courseId: course_id,
-    userId: user_id,
-  });
+//   const updatedCourse = await courseService.applyForCourse({
+//     courseId: course_id,
+//     userId: user_id,
+//   });
 
-  res.status(httpStatus.OK).send({
-    message: 'User successfully applied to the course.',
-    course: updatedCourse,
-  });
-});
-
+//   res.status(httpStatus.OK).send({
+//     message: 'User successfully applied to the course.',
+//     course: updatedCourse,
+//   });
+// });
 
 // const getAllCourseCategories = catchAsync(async (req, res) => {
 //   const courseCategory = await courseService.getAllCourseCategories();
 //   res.status(httpStatus.OK).send(courseCategory);
 // });
 
-
 // const createCourseCategory = catchAsync(async (req, res) => {
 //   const newCourseCategory = await courseService.createCourseCategory(req.body);
 //   res.status(httpStatus.CREATED).send(newCourseCategory);
 // });
-
 
 module.exports = {
   // admin
@@ -235,14 +214,13 @@ module.exports = {
   getAllCourses,
   getCourseBySlugOrId,
   createCourseSession,
-  applyForCourse,
+  // applyForCourse,
   updateCourse,
   deleteCourse,
-  getCoursePrivateFile,
+  // getCoursePrivateFile,
   // categories
   getAllCategories,
   createCategory,
   getSubCategories,
-  createSubCategory
-
+  createSubCategory,
 };

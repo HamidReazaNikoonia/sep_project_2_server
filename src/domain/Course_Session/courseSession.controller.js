@@ -49,31 +49,31 @@ const getCourseBySlugOrId = catchAsync(async (req, res) => {
 
 const createCourseSession = catchAsync(async (req, res) => {
   // Validate all coaches exist
-  const coaches = await Coach.find({ _id: { $in: req.body.coaches } });
-  if (coaches.length !== req.body.coaches.length) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'One or more coaches not found');
-  }
+  // const coaches = await Coach.find({ _id: { $in: req.body.coaches } });
+  // if (coaches.length !== req.body.coaches.length) {
+  //   throw new ApiError(httpStatus.BAD_REQUEST, 'One or more coaches not found');
+  // }
 
   // Validate session coaches are in the course coaches list
-  const invalidSessions = req.body.sessions.filter((session) => !req.body.coaches.includes(session.coach));
-  if (invalidSessions.length > 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Session coach must be assigned to course');
-  }
+  // const invalidSessions = req.body.sessions.filter((session) => !req.body.coaches.includes(session.coach));
+  // if (invalidSessions.length > 0) {
+  //   throw new ApiError(httpStatus.BAD_REQUEST, 'Session coach must be assigned to course');
+  // }
 
   // Check for coach scheduling conflicts
-  await Promise.all(
-    req.body.sessions.map(async (session) => {
-      const isAvailable = await courseSesshionService.checkCoachAvailability(
-        session.coach,
-        session.date,
-        session.startTime,
-        session.endTime
-      );
-      if (!isAvailable) {
-        throw new ApiError(httpStatus.CONFLICT, `Coach ${session.coach} has scheduling conflict`);
-      }
-    })
-  );
+  // await Promise.all(
+  //   req.body.sessions.map(async (session) => {
+  //     const isAvailable = await courseSesshionService.checkCoachAvailability(
+  //       session.coach,
+  //       session.date,
+  //       session.startTime,
+  //       session.endTime
+  //     );
+  //     if (!isAvailable) {
+  //       throw new ApiError(httpStatus.CONFLICT, `Coach ${session.coach} has scheduling conflict`);
+  //     }
+  //   })
+  // );
 
   const course = await CourseSession.create(req.body);
   res.status(httpStatus.CREATED).send(course);

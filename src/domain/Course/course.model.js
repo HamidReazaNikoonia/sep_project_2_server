@@ -59,6 +59,7 @@ const courseSchema = new Schema(
     },
     sub_title: String,
     description: String,
+    description_long: String,
     tumbnail_image: {
       type: Schema.Types.ObjectId,
       required: true,

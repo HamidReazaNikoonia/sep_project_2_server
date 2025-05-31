@@ -21,35 +21,87 @@ const createCourse = {
     title: Joi.string().trim().required().min(3).max(100),
     sub_title: Joi.string().trim().required().min(3).max(100),
     description: Joi.string().required().min(10).max(2000),
+    description_long: Joi.string().min(10).max(2000),
     tumbnail: Joi.string().custom(objectId).required(),
     price: Joi.number().required().min(10000),
-    max_member_accept: Joi.number().required().min(1),
+    sample_media: Joi.array()
+      .items(
+        Joi.object().keys({
+          media_type: Joi.string().required(),
+          media_title: Joi.string().required(),
+          url_address: Joi.string().uri().allow(''),
+          file: Joi.string().custom(objectId).required(),
+        })
+      )
+      .optional(),
+    // max_member_accept: Joi.number().required().min(1),
     course_language: Joi.string(),
     course_duration: Joi.number(),
-    educational_level: Joi.string(),
+    educational_level: Joi.number(),
     is_have_licence: Joi.boolean(),
     course_session_category: Joi.string().custom(objectId),
     course_session_sub_category: Joi.string().custom(objectId),
     course_type: Joi.string().valid('ONLINE', 'HOZORI').required(),
-    coaches: Joi.array().items(Joi.string().custom(objectId).required()).min(1).required(),
-    sessions: Joi.array()
-      .items(
-        Joi.object().keys({
-          coach: Joi.string().custom(objectId).required(),
-          date: Joi.date().greater('now').required(),
-          startTime: Joi.string()
-            .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-            .required(),
-          endTime: Joi.string()
-            .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-            .required(),
-          meetingLink: Joi.string(),
-          location: Joi.string(),
-        })
-      )
-      .min(1)
-      .required(),
-    // ... other fields
+    // coaches: Joi.array().items(Joi.string().custom(objectId).required()).min(1).required(),
+    // sessions: Joi.array()
+    //   .items(
+    //     Joi.object().keys({
+    //       coach: Joi.string().custom(objectId).required(),
+    //       date: Joi.date().greater('now').required(),
+    //       startTime: Joi.string()
+    //         .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    //         .required(),
+    //       endTime: Joi.string()
+    //         .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    //         .required(),
+    //       meetingLink: Joi.string(),
+    //       location: Joi.string(),
+    //     })
+    //   )
+    //   .min(1)
+    //   .required(),
+    // classes: Joi.array()
+    //   .items(
+    //     Joi.object().keys({
+    //       coach: Joi.string().custom(objectId).required(),
+    //       classNo: Joi.string().custom(objectId).required(),
+    //       max_member_accept: Joi.number().integer().min(1).default(10),
+    //       member: Joi.array()
+    //         .items(
+    //           Joi.object().keys({
+    //             user: Joi.string().custom(objectId),
+    //           })
+    //         )
+    //         .default([]),
+    //       sessions: Joi.array()
+    //         .items(
+    //           Joi.object().keys({
+    //             date: Joi.date().greater('now').required(),
+    //             startTime: Joi.string()
+    //               .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    //               .required(),
+    //             endTime: Joi.string()
+    //               .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    //               .required(),
+    //             meetingLink: Joi.string().when('course_type', {
+    //               is: 'ONLINE',
+    //               then: Joi.string().uri().required(),
+    //               otherwise: Joi.forbidden(),
+    //             }),
+    //             location: Joi.string().when('course_type', {
+    //               is: 'HOZORI',
+    //               then: Joi.string().required(),
+    //               otherwise: Joi.forbidden(),
+    //             }),
+    //             status: Joi.string().valid('scheduled', 'completed', 'cancelled').default('scheduled'),
+    //           })
+    //         )
+    //         .min(1)
+    //         .required(),
+    //     })
+    //   )
+    //   .min(1)
+    //   .required(),
   }),
 };
 
@@ -61,8 +113,19 @@ const updateCourse = {
     .keys({
       title: Joi.string().trim().min(3).max(100),
       description: Joi.string().min(10).max(2000),
+      description_long: Joi.string().min(10).max(2000),
       courseType: Joi.string().valid('online', 'in-person'),
       coaches: Joi.array().items(Joi.string().custom(objectId)).min(1),
+      sample_media: Joi.array()
+        .items(
+          Joi.object().keys({
+            media_type: Joi.string().required(),
+            media_title: Joi.string().required(),
+            url_address: Joi.string().uri().allow(''),
+            file: Joi.string().custom(objectId).required(),
+          })
+        )
+        .optional(),
       sessions: Joi.array()
         .items(
           Joi.object().keys({

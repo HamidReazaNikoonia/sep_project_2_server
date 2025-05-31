@@ -56,7 +56,7 @@ const sessionSchema = new mongoose.Schema(
     coach: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Coach',
-      required: true,
+      required: false,
     },
     date: {
       type: Date,
@@ -107,13 +107,54 @@ const courseSessionSchema = new Schema(
     },
     sub_title: String,
     description: String,
+    description_long: String,
     tumbnail: {
       type: Schema.Types.ObjectId,
       required: true,
       ref: 'Upload',
       autopopulate: true,
     },
-    sessions: [sessionSchema],
+    sessions: {
+      type: [sessionSchema],
+      required: false,
+    },
+    classes: {
+      type: [
+        {
+          coach: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Coach',
+            required: true,
+            autopopulate: true,
+          },
+          classNo: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'ClassNo',
+            required: true,
+            autopopulate: true,
+          },
+          sessions: [sessionSchema],
+          max_member_accept: {
+            type: Number,
+            default: 10,
+            min: [1, 'Max members must be at least 1.'], // Minimum value
+            validate: {
+              validator: (value) => Number.isInteger(value),
+              message: 'Max members must be an integer.',
+            },
+          },
+          member: [
+            {
+              user: {
+                type: Schema.Types.ObjectId,
+                ref: 'User',
+              },
+            },
+          ],
+        },
+      ],
+      required: false,
+    },
     sample_media: {
       type: [
         {
@@ -142,15 +183,6 @@ const courseSessionSchema = new Schema(
         },
       },
     ],
-    max_member_accept: {
-      type: Number,
-      default: 10,
-      min: [1, 'Max members must be at least 1.'], // Minimum value
-      validate: {
-        validator: (value) => Number.isInteger(value),
-        message: 'Max members must be an integer.',
-      },
-    },
     course_language: String,
     course_duration: Number,
     course_type: {
@@ -179,7 +211,8 @@ const courseSessionSchema = new Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Coach',
-        required: true,
+        required: false,
+        autopopulate: true,
       },
     ],
     // course_objects: [

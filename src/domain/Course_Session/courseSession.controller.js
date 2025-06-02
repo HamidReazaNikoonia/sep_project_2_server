@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 const httpStatus = require('http-status');
 const mongoose = require('mongoose');
 const { omit } = require('lodash');
@@ -84,6 +85,27 @@ const updateCourse = catchAsync(async (req, res) => {
   const updatedData = req.body;
 
   const updatedCourse = await courseSesshionService.updateCourse(courseSessionId, updatedData);
+  res.status(httpStatus.OK).send(updatedCourse);
+});
+
+const updateCourseSessionForAssignCoachAndTimeSlot = catchAsync(async (req, res) => {
+  // eslint-disable-next-line camelcase
+  const { course_id } = req.params;
+  const { coach_id, date, start_time, end_time, class_id, max_member_accept } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(course_id)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID');
+  }
+
+  const updatedCourse = await courseSesshionService.updateCourseSessionForAssignCoachAndTimeSlot(course_id, {
+    coach_id,
+    class_id,
+    date,
+    start_time,
+    end_time,
+    ...(max_member_accept ? { max_member_accept } : {}),
+  });
+
   res.status(httpStatus.OK).send(updatedCourse);
 });
 
@@ -216,6 +238,7 @@ module.exports = {
   createCourseSession,
   // applyForCourse,
   updateCourse,
+  updateCourseSessionForAssignCoachAndTimeSlot,
   deleteCourse,
   // getCoursePrivateFile,
   // categories

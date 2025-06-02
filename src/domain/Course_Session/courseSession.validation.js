@@ -153,11 +153,29 @@ const updateCourse = {
     .min(1),
 };
 
+const assignCoachValidation = {
+  body: Joi.object().keys({
+    coachId: Joi.string().custom(objectId).required(),
+    date: Joi.string()
+      .regex(/^\d{4}\/\d{1,2}\/\d{1,2}$/)
+      .required(), // Jalaali format
+    startTime: Joi.string()
+      .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+      .required(),
+    endTime: Joi.string()
+      .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+      .required(),
+    classNo: Joi.string().custom(objectId).required(),
+    max_member_accept: Joi.number().integer().min(1)
+  }),
+};
+
 module.exports = {
   courseCategoryValidation: {
     createCategory,
     createSubCategory,
     createCourse,
     updateCourse,
+    assignCoachValidation,
   },
 };

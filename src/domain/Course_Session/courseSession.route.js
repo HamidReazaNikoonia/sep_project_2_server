@@ -34,6 +34,9 @@ router.get('/:slug', courseController.getCourseBySlugOrId);
 // // Update a course
 router.put('/:course_id', courseController.updateCourse);
 
+// Update and assign a coach to a course
+router.put('/:course_id/assign-coach', courseController.updateCourseSessionForAssignCoachAndTimeSlot);
+
 // // Delete a course
 router.delete('/:course_id', courseController.deleteCourse);
 

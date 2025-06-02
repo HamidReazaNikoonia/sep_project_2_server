@@ -5,6 +5,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const httpStatus = require('http-status');
+const momentJalaali = require('moment-jalaali');
 const { CourseSession, CourseSessionCategory, CourseSessionSubCategory } = require('./courseSession.model');
 const APIFeatures = require('../../utils/APIFeatures');
 
@@ -12,6 +13,7 @@ const APIFeatures = require('../../utils/APIFeatures');
 const Coach = require('../Coach/coach.model');
 const User = require('../../models/user.model'); // Assuming User model exists
 const Profile = require('../Profile/profile.model');
+const ClassNo = require('../ClassNo/classNo.model');
 
 const ApiError = require('../../utils/ApiError');
 
@@ -290,6 +292,109 @@ const updateCourse = async (courseId, updateData) => {
   return course;
 };
 
+const updateCourseSessionForAssignCoachAndTimeSlot = async (
+  courseId,
+  { coach_id, date, start_time, end_time, class_id, max_member_accept }
+) => {
+  // 1. Validate CourseSession exists
+  const course = await CourseSession.findById(courseId);
+  if (!course) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Course session not found');
+  }
+
+  // 2. Validate Coach exists
+  const coach = await Coach.findById(coach_id);
+  if (!coach) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Coach not found');
+  }
+
+  //  Validate ClassNo exists if provided
+
+  const classExists = await ClassNo.findById(class_id);
+  if (!classExists) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Class not found');
+  }
+
+  // 3. Check if coach is already assigned to this course
+  const isCoachAssigned = course.coaches.includes(coach_id);
+  if (!isCoachAssigned) {
+    course.coaches.push(coach_id);
+  }
+
+  // 4. Check coach availability
+  const isAvailable = await checkCoachAvailability(coach_id, date, start_time, end_time);
+  if (!isAvailable) {
+    throw new ApiError(httpStatus.CONFLICT, 'Coach has scheduling conflict');
+  }
+
+  // 5. Convert Jalaali date to Gregorian for storage
+  const gregorianDate = momentJalaali(date, 'jYYYY/jM/jD').format('YYYY-MM-DD');
+
+  // 6. Create new session
+  const newSession = {
+    coach: coach_id,
+    date: gregorianDate,
+    startTime: start_time,
+    endTime: end_time,
+    status: 'scheduled',
+  };
+
+  // 7. Add session to course
+  course.sessions.push(newSession);
+
+  // 8. Update classes if needed
+  if (classExists) {
+    // Check if class already exists for this coach
+    const existingClassIndex = course.classes.findIndex(
+      (c) => c.coach.toString() === coach_id && c.classNo.toString() === class_id
+    );
+
+    if (existingClassIndex >= 0) {
+      // Update existing class
+      course.classes[existingClassIndex].sessions.push({
+        date: gregorianDate,
+        startTime: start_time,
+        endTime: end_time,
+        status: 'scheduled',
+      });
+
+      if (max_member_accept !== undefined) {
+        course.classes[existingClassIndex].max_member_accept = max_member_accept;
+      }
+    } else {
+      // Create new class
+      const newClass = {
+        coach: coach_id,
+        classNo: class_id,
+        sessions: [
+          {
+            date: gregorianDate,
+            startTime: start_time,
+            endTime: end_time,
+            status: 'scheduled',
+          },
+        ],
+        max_member_accept: max_member_accept || 10, // Default to 10 if not provided
+        member: [],
+      };
+      course.classes.push(newClass);
+    }
+  }
+
+  // const coachClass = course.classes.find((c) => c.coach.toString() === coachId);
+  // if (coachClass) {
+  //   coachClass.sessions.push({
+  //     date: gregorianDate,
+  //     startTime,
+  //     endTime,
+  //     status: 'scheduled',
+  //   });
+  // }
+
+  await course.save();
+  return course;
+};
+
 const deleteCourse = async (courseId) => {
   const course = await CourseSession.findById(courseId);
   if (!course) {
@@ -400,6 +505,7 @@ module.exports = {
   applyForCourse,
   deleteCourse,
   updateCourse,
+  updateCourseSessionForAssignCoachAndTimeSlot,
   sendFileDirectly,
   verifyCourseAccess,
   // categories

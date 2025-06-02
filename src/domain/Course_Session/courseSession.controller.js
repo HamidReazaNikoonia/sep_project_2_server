@@ -9,7 +9,7 @@ const pick = require('../../utils/pick');
 const courseSesshionService = require('./courseSession.service');
 
 // models
-const Coach = require('../Coach/coach.model');
+// const Coach = require('../Coach/coach.model');
 const { CourseSession } = require('./courseSession.model');
 // const Upload = require('../../services/uploader/uploader.model');
 
@@ -88,25 +88,51 @@ const updateCourse = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(updatedCourse);
 });
 
-const updateCourseSessionForAssignCoachAndTimeSlot = catchAsync(async (req, res) => {
-  // eslint-disable-next-line camelcase
-  const { course_id } = req.params;
-  const { coach_id, date, start_time, end_time, class_id, max_member_accept } = req.body;
+// const updateCourseSessionForAssignCoachAndTimeSlot = catchAsync(async (req, res) => {
+//   // eslint-disable-next-line camelcase
+//   const { course_id } = req.params;
+//   const { coach_id, date, start_time, end_time, class_id, max_member_accept } = req.body;
 
+//   if (!mongoose.Types.ObjectId.isValid(course_id)) {
+//     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID');
+//   }
+
+//   const updatedCourse = await courseSesshionService.updateCourseSessionForAssignCoachAndTimeSlot(course_id, {
+//     coach_id,
+//     class_id,
+//     date,
+//     start_time,
+//     end_time,
+//     ...(max_member_accept ? { max_member_accept } : {}),
+//   });
+
+//   res.status(httpStatus.OK).send(updatedCourse);
+// });
+
+const assignClassProgram = catchAsync(async (req, res) => {
+  const { course_id } = req.params;
+  const { coach_id, class_id, program_type, max_member_accept, sessions } = req.body;
+
+  // Validate course ID
   if (!mongoose.Types.ObjectId.isValid(course_id)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID');
   }
 
-  const updatedCourse = await courseSesshionService.updateCourseSessionForAssignCoachAndTimeSlot(course_id, {
+  // Validate required fields
+  if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'At least one session is required');
+  }
+
+  const classProgram = await courseSesshionService.createClassProgram({
+    course_id,
     coach_id,
     class_id,
-    date,
-    start_time,
-    end_time,
-    ...(max_member_accept ? { max_member_accept } : {}),
+    program_type,
+    max_member_accept,
+    sessions,
   });
 
-  res.status(httpStatus.OK).send(updatedCourse);
+  res.status(httpStatus.CREATED).send(classProgram);
 });
 
 const deleteCourse = catchAsync(async (req, res) => {
@@ -238,7 +264,7 @@ module.exports = {
   createCourseSession,
   // applyForCourse,
   updateCourse,
-  updateCourseSessionForAssignCoachAndTimeSlot,
+  assignClassProgram,
   deleteCourse,
   // getCoursePrivateFile,
   // categories

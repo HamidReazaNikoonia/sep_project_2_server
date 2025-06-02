@@ -153,20 +153,28 @@ const updateCourse = {
     .min(1),
 };
 
-const assignCoachValidation = {
+const createClassProgram = {
   body: Joi.object().keys({
-    coachId: Joi.string().custom(objectId).required(),
-    date: Joi.string()
-      .regex(/^\d{4}\/\d{1,2}\/\d{1,2}$/)
-      .required(), // Jalaali format
-    startTime: Joi.string()
-      .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    coach_id: Joi.string().custom(objectId).required(),
+    class_id: Joi.string().required(),
+    program_type: Joi.string().valid('online', 'ON-SITE').required(),
+    max_member_accept: Joi.number().integer().min(1).default(10),
+    sessions: Joi.array()
+      .items(
+        Joi.object().keys({
+          date: Joi.string()
+            .regex(/^\d{4}\/\d{1,2}\/\d{1,2}$/)
+            .required(),
+          startTime: Joi.string()
+            .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+            .required(),
+          endTime: Joi.string()
+            .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+            .required(),
+        })
+      )
+      .min(1)
       .required(),
-    endTime: Joi.string()
-      .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-      .required(),
-    classNo: Joi.string().custom(objectId).required(),
-    max_member_accept: Joi.number().integer().min(1)
   }),
 };
 
@@ -176,6 +184,6 @@ module.exports = {
     createSubCategory,
     createCourse,
     updateCourse,
-    assignCoachValidation,
+    createClassProgram,
   },
 };

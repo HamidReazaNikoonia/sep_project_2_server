@@ -135,6 +135,29 @@ const assignClassProgram = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(classProgram);
 });
 
+const getAllProgramsOFSpecificCourse = catchAsync(async (req, res) => {
+  const { course_id } = req.params;
+
+  // Validate course ID format
+  if (!mongoose.Types.ObjectId.isValid(course_id)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID format');
+  }
+
+  const programs = await courseSesshionService.getAllProgramsOFSpecificCourse(course_id);
+
+  if (!programs || programs.length === 0) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'No programs found for this course');
+  }
+
+  res.status(httpStatus.OK).send({
+    status: 'success',
+    results: programs.length,
+    data: {
+      programs,
+    },
+  });
+});
+
 const deleteCourse = catchAsync(async (req, res) => {
   const courseId = req.params.course_id;
 
@@ -265,6 +288,7 @@ module.exports = {
   // applyForCourse,
   updateCourse,
   assignClassProgram,
+  getAllProgramsOFSpecificCourse,
   deleteCourse,
   // getCoursePrivateFile,
   // categories

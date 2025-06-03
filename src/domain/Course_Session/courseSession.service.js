@@ -393,6 +393,33 @@ const createClassProgram = async ({ course_id, coach_id, class_id, program_type,
   return classProgram;
 };
 
+const getAllProgramsOFSpecificCourse = async (courseId) => {
+  // Find all class programs for the specified course
+  const programs = await ClassProgram.find({ course: courseId })
+    .populate('coach', 'first_name last_name avatar') // Populate coach details
+    .populate('course', 'title sub_title thumbnail') // Populate basic course info
+    .lean();
+
+  // Transform dates to Jalaali format for response
+  const transformedPrograms = programs.map((program) => {
+    const transformedSessions = program.sessions.map((session) => {
+      // const gregorianDate = momentJalaali(date, 'jYYYY/jM/jD').format('YYYY-MM-DD');
+
+      return {
+        ...session,
+        date: momentJalaali(session.date).format('jYYYY/jM/jD'), // Convert to Jalaali
+      };
+    });
+
+    return {
+      ...program,
+      sessions: transformedSessions,
+    };
+  });
+
+  return transformedPrograms;
+};
+
 // const updateCourseSessionForAssignCoachAndTimeSlot = async (
 //   courseId,
 //   { coach_id, date, start_time, end_time, class_id, max_member_accept }
@@ -630,6 +657,7 @@ module.exports = {
   applyForCourse,
   deleteCourse,
   updateCourse,
+  getAllProgramsOFSpecificCourse,
   // updateCourseSessionForAssignCoachAndTimeSlot,
   createClassProgram,
   sendFileDirectly,

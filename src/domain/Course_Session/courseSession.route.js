@@ -1,5 +1,6 @@
 const express = require('express');
 const courseController = require('./courseSession.controller');
+const categoryController = require('./Category/category.controller');
 // const auth = require('../../middlewares/auth');
 const validate = require('../../middlewares/validate');
 
@@ -18,15 +19,19 @@ router
 // router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE
 
 // // Route Category
-router
-  .route('/category')
-  .get(courseController.getAllCategories)
-  .post(validate(courseCategoryValidation.createCategory), courseController.createCategory);
+// router
+//   .route('/category')
+//   .get(courseController.getAllCategories)
+//   .post(validate(courseCategoryValidation.createCategory), courseController.createCategory);
 
-router
-  .route('/category/:categoryId/subcategories')
-  .get(courseController.getSubCategories)
-  .post(validate(courseCategoryValidation.createSubCategory), courseController.createSubCategory);
+// router
+//   .route('/category/:categoryId/subcategories')
+//   .get(courseController.getSubCategories)
+//   .post(validate(courseCategoryValidation.createSubCategory), courseController.createSubCategory);
+
+router.post('/category', categoryController.createCategory);
+router.get('/category/tree', categoryController.getCategoryTree);
+router.get('/category/:id', categoryController.getCategoryById);
 
 // /// ///////
 router.get('/:slug', courseController.getCourseBySlugOrId);

@@ -1,6 +1,16 @@
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('../../models/plugins');
 
+const { Schema } = mongoose;
+
+const sessionPackagesSchema = new mongoose.Schema({
+  title: String,
+  price: {
+    type: Number,
+    min: [10000, 'Price must be at least 10,000.'],
+  },
+});
+
 const sessionSchema = new mongoose.Schema(
   {
     date: {
@@ -57,6 +67,41 @@ const classProgramSchema = mongoose.Schema(
       required: true,
       // unique: true,
     },
+    sample_media: {
+      type: [
+        {
+          media_type: String,
+          media_title: String,
+          url_address: String,
+          file: {
+            type: Schema.Types.ObjectId,
+            ref: 'Upload',
+            autopopulate: true,
+          },
+        },
+      ],
+      required: false,
+    },
+    packages: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Session_Package',
+      },
+    ],
+    price_real: {
+      type: Number,
+      required: true,
+      min: [10000, 'Price must be at least 10,000.'],
+    },
+    price_discounted: {
+      type: Number,
+      required: false,
+      min: [0, 'Discounted price must be positive.'],
+    },
+    is_fire_sale: {
+      type: Boolean,
+      default: false,
+    },
     program_type: {
       type: String,
       enum: ['ONLINE', 'ON-SITE'],
@@ -79,6 +124,14 @@ const classProgramSchema = mongoose.Schema(
         },
       },
     ],
+    course_language: String,
+    course_duration: Number,
+    is_have_licence: {
+      type: Boolean,
+      default: false,
+    },
+    licence: String,
+    score: Number,
     sessions: [sessionSchema],
     status: {
       type: String,
@@ -91,6 +144,7 @@ const classProgramSchema = mongoose.Schema(
   }
 );
 
+// plugins
 classProgramSchema.plugin(toJSON);
 classProgramSchema.plugin(paginate);
 classProgramSchema.plugin(require('mongoose-autopopulate'));
@@ -100,4 +154,6 @@ classProgramSchema.index({ course: 1 });
 classProgramSchema.index({ coach: 1 });
 classProgramSchema.index({ 'sessions.date': 1 });
 
-module.exports = mongoose.model('ClassProgram', classProgramSchema);
+const sessionPackageModel = mongoose.model('Session_Package', sessionPackagesSchema);
+const classProgramModel = mongoose.model('ClassProgram', classProgramSchema);
+module.exports = { sessionPackageModel, classProgramModel };

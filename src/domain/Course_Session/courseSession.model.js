@@ -81,11 +81,11 @@ const courseSessionSchema = new Schema(
       ],
       required: false,
     },
-    price: {
-      type: Number,
-      required: false,
-      min: [10000, 'Price must be at least 10,000.'], // Minimum value
-    },
+    // price: {
+    //   type: Number,
+    //   required: false,
+    //   min: [10000, 'Price must be at least 10,000.'], // Minimum value
+    // },
     member: [
       {
         user: {
@@ -94,13 +94,13 @@ const courseSessionSchema = new Schema(
         },
       },
     ],
-    course_language: String,
-    course_duration: Number,
-    course_type: {
-      type: String,
-      required: true,
-      enum: ['HOZORI', 'ONLINE', 'BOTH'],
-    },
+    // course_language: String,
+    // course_duration: Number,
+    // course_type: {
+    //   type: String,
+    //   required: true,
+    //   enum: ['HOZORI', 'ONLINE', 'BOTH'],
+    // },
     educational_level: Number,
     is_have_licence: {
       type: Boolean,
@@ -113,11 +113,11 @@ const courseSessionSchema = new Schema(
       ref: 'Course_Session_Category',
       autopopulate: true,
     },
-    course_session_sub_category: {
-      type: Schema.Types.ObjectId,
-      ref: 'Course_Session_Sub_Category',
-      autopopulate: true,
-    },
+    // course_session_sub_category: {
+    //   type: Schema.Types.ObjectId,
+    //   ref: 'Course_Session_Sub_Category',
+    //   autopopulate: true,
+    // },
     coaches: [
       {
         type: mongoose.Schema.Types.ObjectId,

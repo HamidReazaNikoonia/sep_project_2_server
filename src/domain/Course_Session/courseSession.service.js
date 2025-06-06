@@ -14,7 +14,7 @@ const Coach = require('../Coach/coach.model');
 const User = require('../../models/user.model'); // Assuming User model exists
 const Profile = require('../Profile/profile.model');
 // const ClassNo = require('../ClassNo/classNo.model');
-const ClassProgram = require('./classProgram.model');
+const { classProgramModel } = require('./classProgram.model');
 
 const ApiError = require('../../utils/ApiError');
 
@@ -47,7 +47,7 @@ const checkCoachAvailability = async (coachId, date, startTime, endTime) => {
   const gregorianDate = momentJalaali(date, 'jYYYY/jM/jD').format('YYYY-MM-DD');
 
   // Find all class programs for this coach with sessions on this date
-  const programs = await ClassProgram.find({
+  const programs = await classProgramModel.find({
     coach: coachId,
     'sessions.date': gregorianDate,
     'sessions.status': 'scheduled',
@@ -324,7 +324,19 @@ const updateCourse = async (courseId, updateData) => {
   return course;
 };
 
-const createClassProgram = async ({ course_id, coach_id, class_id, program_type, max_member_accept = 10, sessions }) => {
+const createClassProgram = async ({
+  course_id,
+  coach_id,
+  class_id,
+  program_type,
+  max_member_accept = 10,
+  sessions,
+  price_real,
+  price_discounted,
+  is_fire_sale,
+  packages,
+  sample_media,
+}) => {
   // 1. Validate Course exists
   const course = await CourseSession.findById(course_id);
   if (!course) {
@@ -375,7 +387,7 @@ const createClassProgram = async ({ course_id, coach_id, class_id, program_type,
   });
 
   // 5. Create new class program
-  const classProgram = await ClassProgram.create({
+  const classProgram = await classProgramModel.create({
     course: course_id,
     coach: coach_id,
     class_id,
@@ -383,6 +395,11 @@ const createClassProgram = async ({ course_id, coach_id, class_id, program_type,
     max_member_accept,
     sessions: validatedSessions,
     status: 'active',
+    price_real,
+    ...(price_discounted ? { price_discounted } : {}),
+    is_fire_sale,
+    packages,
+    sample_media,
   });
 
   // 6. Update course coaches if not already included
@@ -395,7 +412,8 @@ const createClassProgram = async ({ course_id, coach_id, class_id, program_type,
 
 const getAllProgramsOFSpecificCourse = async (courseId) => {
   // Find all class programs for the specified course
-  const programs = await ClassProgram.find({ course: courseId })
+  const programs = await classProgramModel
+    .find({ course: courseId })
     .populate('coach', 'first_name last_name avatar') // Populate coach details
     .populate('course', 'title sub_title thumbnail') // Populate basic course info
     .lean();

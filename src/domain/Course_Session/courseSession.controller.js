@@ -111,7 +111,18 @@ const updateCourse = catchAsync(async (req, res) => {
 
 const assignClassProgram = catchAsync(async (req, res) => {
   const { course_id } = req.params;
-  const { coach_id, class_id, program_type, max_member_accept, sessions } = req.body;
+  const {
+    coach_id,
+    class_id,
+    program_type,
+    max_member_accept,
+    sessions,
+    price_real,
+    price_discounted,
+    is_fire_sale,
+    packages,
+    sample_media,
+  } = req.body;
 
   // Validate course ID
   if (!mongoose.Types.ObjectId.isValid(course_id)) {
@@ -130,6 +141,11 @@ const assignClassProgram = catchAsync(async (req, res) => {
     program_type,
     max_member_accept,
     sessions,
+    price_real,
+    price_discounted,
+    is_fire_sale,
+    packages,
+    sample_media,
   });
 
   res.status(httpStatus.CREATED).send(classProgram);

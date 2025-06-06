@@ -4,10 +4,14 @@ const { toJSON, paginate } = require('../../models/plugins');
 const { Schema } = mongoose;
 
 const sessionPackagesSchema = new mongoose.Schema({
-  title: String,
+  title: {
+    type: String,
+    required: true,
+  },
   price: {
     type: Number,
     min: [10000, 'Price must be at least 10,000.'],
+    required: true,
   },
 });
 

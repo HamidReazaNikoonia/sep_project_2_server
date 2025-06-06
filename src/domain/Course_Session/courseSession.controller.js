@@ -267,33 +267,17 @@ const createSubCategory = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(subCategory);
 });
 
-// public
-// User (Students) Controllers
+// Course Session Packages
 
-// const applyForCourse = catchAsync(async (req, res) => {
-//   const { course_id } = req.params;
-//   const { user_id } = req.body;
+const getAllCourseSessionPackage = catchAsync(async (req, res) => {
+  const packages = await courseSesshionService.getAllCourseSessionPackage();
+  res.status(httpStatus.OK).send(packages);
+});
 
-//   const updatedCourse = await courseService.applyForCourse({
-//     courseId: course_id,
-//     userId: user_id,
-//   });
-
-//   res.status(httpStatus.OK).send({
-//     message: 'User successfully applied to the course.',
-//     course: updatedCourse,
-//   });
-// });
-
-// const getAllCourseCategories = catchAsync(async (req, res) => {
-//   const courseCategory = await courseService.getAllCourseCategories();
-//   res.status(httpStatus.OK).send(courseCategory);
-// });
-
-// const createCourseCategory = catchAsync(async (req, res) => {
-//   const newCourseCategory = await courseService.createCourseCategory(req.body);
-//   res.status(httpStatus.CREATED).send(newCourseCategory);
-// });
+const createCourseSessionPackage = catchAsync(async (req, res) => {
+  const packages = await courseSesshionService.createCourseSessionPackage(req.body);
+  res.status(httpStatus.CREATED).send(packages);
+});
 
 module.exports = {
   // admin
@@ -312,4 +296,7 @@ module.exports = {
   createCategory,
   getSubCategories,
   createSubCategory,
+  // package
+  getAllCourseSessionPackage,
+  createCourseSessionPackage,
 };

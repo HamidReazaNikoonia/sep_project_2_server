@@ -16,6 +16,11 @@ router
   .get(courseController.getAllCoursesSessionForAdmin)
   .post(validate(courseCategoryValidation.createCourse), courseController.createCourseSession);
 
+router
+  .route('/admin/course-session-package')
+  .get(courseController.getAllCourseSessionPackage)
+  .post(courseController.createCourseSessionPackage);
+
 // router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE
 
 // // Route Category

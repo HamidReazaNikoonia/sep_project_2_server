@@ -14,7 +14,7 @@ const Coach = require('../Coach/coach.model');
 const User = require('../../models/user.model'); // Assuming User model exists
 const Profile = require('../Profile/profile.model');
 // const ClassNo = require('../ClassNo/classNo.model');
-const { classProgramModel } = require('./classProgram.model');
+const { classProgramModel, sessionPackageModel } = require('./classProgram.model');
 
 const ApiError = require('../../utils/ApiError');
 
@@ -656,14 +656,24 @@ const createSubCategory = async ({ categoryId, name }) => {
   return subCategory;
 };
 
-// const getAllCourseCategories = async () => {
-//   return await CourseCategory.find();
-// };
+// Course Session Package
 
-// const createCourseCategory = async (courseData) => {
-//   const newCategory = new CourseCategory(courseData);
-//   return await newCategory.save();
-// };
+const getAllCourseSessionPackage = async () => {
+  const createdPackage = await sessionPackageModel.find();
+
+  return createdPackage;
+};
+
+const createCourseSessionPackage = async (requestBody) => {
+  const { title, price } = requestBody;
+
+  const createdPackage = await sessionPackageModel.create({
+    title,
+    price,
+  });
+
+  return createdPackage;
+};
 
 module.exports = {
   checkCoachAvailability,
@@ -685,4 +695,7 @@ module.exports = {
   createCategory,
   getSubCategories,
   createSubCategory,
+  // packages
+  getAllCourseSessionPackage,
+  createCourseSessionPackage,
 };

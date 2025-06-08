@@ -22,8 +22,8 @@ const createCourse = {
     sub_title: Joi.string().trim().required().min(3).max(100),
     description: Joi.string().required().min(10).max(2000),
     description_long: Joi.string().min(10).max(2000),
-    tumbnail: Joi.string().custom(objectId).required(),
-    price: Joi.number().required().min(10000),
+    tumbnail: Joi.string().custom(objectId),
+    // price: Joi.number().required().min(10000),
     sample_media: Joi.array()
       .items(
         Joi.object().keys({
@@ -36,12 +36,12 @@ const createCourse = {
       .optional(),
     // max_member_accept: Joi.number().required().min(1),
     course_language: Joi.string(),
-    course_duration: Joi.number(),
+    // course_duration: Joi.number(),
     educational_level: Joi.number(),
-    is_have_licence: Joi.boolean(),
-    course_session_category: Joi.string().custom(objectId),
-    course_session_sub_category: Joi.string().custom(objectId),
-    course_type: Joi.string().valid('ONLINE', 'HOZORI').required(),
+    // is_have_licence: Joi.boolean(),
+    course_session_category: Joi.array().items(Joi.string().custom(objectId)),
+    // course_session_sub_category: Joi.string().custom(objectId),
+    // course_type: Joi.string().valid('ONLINE', 'HOZORI').required(),
     // coaches: Joi.array().items(Joi.string().custom(objectId).required()).min(1).required(),
     // sessions: Joi.array()
     //   .items(

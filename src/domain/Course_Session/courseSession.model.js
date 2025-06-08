@@ -57,8 +57,14 @@ const courseSessionSchema = new Schema(
       type: String,
       required: true,
     },
-    sub_title: String,
-    description: String,
+    sub_title: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
     description_long: String,
     tumbnail: {
       type: Schema.Types.ObjectId,
@@ -102,17 +108,19 @@ const courseSessionSchema = new Schema(
     //   enum: ['HOZORI', 'ONLINE', 'BOTH'],
     // },
     educational_level: Number,
-    is_have_licence: {
-      type: Boolean,
-      default: false,
-    },
+    // is_have_licence: {
+    //   type: Boolean,
+    //   default: false,
+    // },
     course_views: Number,
     score: Number,
-    course_session_category: {
-      type: Schema.Types.ObjectId,
-      ref: 'Course_Session_Category',
-      autopopulate: true,
-    },
+    course_session_category: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Course_Session_Category',
+        autopopulate: true,
+      },
+    ],
     // course_session_sub_category: {
     //   type: Schema.Types.ObjectId,
     //   ref: 'Course_Session_Sub_Category',

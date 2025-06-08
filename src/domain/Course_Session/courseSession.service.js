@@ -336,6 +336,7 @@ const createClassProgram = async ({
   is_fire_sale,
   packages,
   sample_media,
+  subjects,
 }) => {
   // 1. Validate Course exists
   const course = await CourseSession.findById(course_id);
@@ -400,6 +401,7 @@ const createClassProgram = async ({
     is_fire_sale,
     packages,
     sample_media,
+    subjects,
   });
 
   // 6. Update course coaches if not already included

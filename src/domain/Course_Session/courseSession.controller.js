@@ -122,6 +122,7 @@ const assignClassProgram = catchAsync(async (req, res) => {
     is_fire_sale,
     packages,
     sample_media,
+    subjects,
   } = req.body;
 
   // Validate course ID
@@ -146,6 +147,7 @@ const assignClassProgram = catchAsync(async (req, res) => {
     is_fire_sale,
     packages,
     sample_media,
+    subjects,
   });
 
   res.status(httpStatus.CREATED).send(classProgram);
@@ -161,7 +163,7 @@ const getAllProgramsOFSpecificCourse = catchAsync(async (req, res) => {
 
   const programs = await courseSesshionService.getAllProgramsOFSpecificCourse(course_id);
 
-  if (!programs || programs.length === 0) {
+  if (!programs) {
     throw new ApiError(httpStatus.NOT_FOUND, 'No programs found for this course');
   }
 

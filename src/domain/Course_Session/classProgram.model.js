@@ -71,6 +71,12 @@ const classProgramSchema = mongoose.Schema(
       required: true,
       // unique: true,
     },
+    subjects: [
+      {
+        title: String,
+        sub_title: String,
+      },
+    ],
     sample_media: {
       type: [
         {

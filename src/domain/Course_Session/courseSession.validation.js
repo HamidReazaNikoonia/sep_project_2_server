@@ -35,9 +35,9 @@ const createCourse = {
       )
       .optional(),
     // max_member_accept: Joi.number().required().min(1),
-    course_language: Joi.string(),
+    // course_language: Joi.string(),
     // course_duration: Joi.number(),
-    educational_level: Joi.number(),
+    // educational_level: Joi.number(),
     // is_have_licence: Joi.boolean(),
     course_session_category: Joi.array().items(Joi.string().custom(objectId)),
     // course_session_sub_category: Joi.string().custom(objectId),

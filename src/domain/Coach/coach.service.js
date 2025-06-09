@@ -119,13 +119,13 @@ const checkoutCoachCourseProgram = async ({ userId, coachCourseProgramId }) => {
       Description: '---------',
       Mobile: user.mobile,
     });
-  
+
     // Validate Payment Request
-  
+
     if (!payment || payment.code !== 100) {
       throw new ApiError(httpStatus.BAD_REQUEST, `Payment Error with status => ${payment.code || null}`);
     }
-  
+
     // Create New Transaction
     const transaction = new Transaction({
       // coachUserId: 'NOT_SELECTED',
@@ -135,9 +135,9 @@ const checkoutCoachCourseProgram = async ({ userId, coachCourseProgramId }) => {
       factorNumber: payment.authority,
       tax: TAX_CONSTANT,
     });
-  
+
     const savedTransaction = await transaction.save();
-  
+
     if (!savedTransaction) {
       throw new ApiError(httpStatus[500], 'Transaction Could Not Save In DB');
     }
@@ -244,10 +244,10 @@ const checkoutVerification = async ({ authority, status, coachCourseProgramId, u
 
     // enroll course for the user
     const userId = transaction.customer;
-    
+
     console.log(`id from url params => ${coachCourseProgramId}`)
-    console.log(`id from  Transactiom Model => ${transaction.courseProgram}`) 
-    console.log(`customer id from Transactiom Model => ${userId}`) 
+    console.log(`id from  Transactiom Model => ${transaction.courseProgram}`)
+    console.log(`customer id from Transactiom Model => ${userId}`)
 
     const dd =  await CourseEnrollmentService.enrollCoach(userId, coachCourseProgramId);
 
@@ -273,6 +273,8 @@ const createCoach = async (requestBody) => {
   if (!requestBody) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Data Not Valid');
   }
+
+  requestBody.role = 'coach';
 
   const newCoach = await Coach.create(requestBody);
   return newCoach;

@@ -7,49 +7,49 @@ const { Schema } = mongoose;
 
 // Category Schema
 
-const SubCategorySchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    parentCategory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Course_Category',
-      required: true,
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+// const SubCategorySchema = new mongoose.Schema(
+//   {
+//     name: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//     },
+//     parentCategory: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: 'Course_Category',
+//       required: true,
+//     },
+//   },
+//   {
+//     timestamps: true,
+//   }
+// );
 
-const CourseCategorySchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      unique: true,
-    },
-    isRoot: {
-      type: Boolean,
-      default: true,
-    },
-    subCategories: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Sub_Category',
-      },
-    ],
-  },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
-  }
-);
+// const CourseCategorySchema = new mongoose.Schema(
+//   {
+//     name: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//       unique: true,
+//     },
+//     isRoot: {
+//       type: Boolean,
+//       default: true,
+//     },
+//     subCategories: [
+//       {
+//         type: mongoose.Schema.Types.ObjectId,
+//         ref: 'Sub_Category',
+//       },
+//     ],
+//   },
+//   {
+//     timestamps: true,
+//     toJSON: { virtuals: true },
+//     toObject: { virtuals: true },
+//   }
+// );
 
 const courseSchema = new Schema(
   {
@@ -85,10 +85,19 @@ const courseSchema = new Schema(
         message: 'At least one sample media is required.',
       },
     },
-    price: {
+    price_real: {
       type: Number,
       required: true,
       min: [10000, 'Price must be at least 10,000.'], // Minimum value
+    },
+    price_discount: {
+      type: Number,
+      required: false,
+      min: [10000, 'Price must be at least 10,000.'], // Minimum value
+    },
+    is_fire_sale: {
+      type: Boolean,
+      default: false,
     },
     member: [
       {
@@ -111,7 +120,7 @@ const courseSchema = new Schema(
     course_duration: Number,
     course_type: {
       type: String,
-      required: true,
+      required: false,
       enum: ['HOZORI', 'OFFLINE'],
     },
     course_subject_header: Number,
@@ -122,11 +131,13 @@ const courseSchema = new Schema(
     },
     course_views: Number,
     score: Number,
-    course_category: {
-      type: Schema.Types.ObjectId,
-      ref: 'Course_Category',
-      autopopulate: true,
-    },
+    course_category: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Course_Category',
+        autopopulate: true,
+      },
+    ],
     coach_id: {
       type: Schema.Types.ObjectId,
       ref: 'Coach',
@@ -187,11 +198,11 @@ courseSchema.pre('save', async function (next) {
 });
 
 // Virtual populate to get all subcategories when querying
-CourseCategorySchema.virtual('subCategoriesDetails', {
-  ref: 'Sub_Category',
-  localField: '_id',
-  foreignField: 'parentCategory',
-});
+// CourseCategorySchema.virtual('subCategoriesDetails', {
+//   ref: 'Sub_Category',
+//   localField: '_id',
+//   foreignField: 'parentCategory',
+// });
 
 courseSchema.plugin(require('mongoose-autopopulate'));
 
@@ -200,7 +211,7 @@ courseSchema.plugin(toJSON);
 courseSchema.plugin(paginate);
 
 const Course = mongoose.model('Course', courseSchema);
-const CourseCategory = mongoose.model('Course_Category', CourseCategorySchema);
-const SubCategory = mongoose.model('Sub_Category', SubCategorySchema);
+// const CourseCategory = mongoose.model('Course_Category', CourseCategorySchema);
+// const SubCategory = mongoose.model('Sub_Category', SubCategorySchema);
 
-module.exports = { Course, CourseCategory, SubCategory };
+module.exports = { Course };

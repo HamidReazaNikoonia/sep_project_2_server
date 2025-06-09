@@ -6,6 +6,8 @@ const { roles } = require('../config/roles');
 
 const getMobiles = require('../utils/mobileValidation');
 
+const { Schema } = mongoose;
+
 const userSchema = mongoose.Schema(
   {
     first_name: {
@@ -81,6 +83,12 @@ const userSchema = mongoose.Schema(
       type: String,
       enum: roles,
       default: 'user',
+    },
+    avatar: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      ref: 'Upload',
+      autopopulate: true,
     },
     isEmailVerified: {
       type: Boolean,

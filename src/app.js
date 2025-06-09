@@ -26,10 +26,11 @@ if (config.env !== 'test') {
 app.use(helmet());
 
 // parse json request body
-app.use(express.json());
+// Increase payload size limit
+app.use(express.json({ limit: '100mb' }));
 
 // parse urlencoded request body
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // sanitize request data
 app.use(xss());

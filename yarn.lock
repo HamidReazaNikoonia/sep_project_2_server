@@ -2083,6 +2083,11 @@ cosmiconfig@^7.0.1:
     path-type "^4.0.0"
     yaml "^1.10.0"
 
+couponjs@^0.16.1:
+  version "0.16.1"
+  resolved "https://registry.yarnpkg.com/couponjs/-/couponjs-0.16.1.tgz#77b6794f6e2f8127200e745c4163d8fe3db6899a"
+  integrity sha512-d72UrcD7rTr2Z6FU97xPIoomihg2RkbY8ffv8rohUH55EQFXT4Trgox0rWMmZDNPMkJamwgVCPtw+ftvXzh+Aw==
+
 coveralls@^3.0.7:
   version "3.1.1"
   resolved "https://registry.yarnpkg.com/coveralls/-/coveralls-3.1.1.tgz#f5d4431d8b5ae69c5079c8f8ca00d64ac77cf081"

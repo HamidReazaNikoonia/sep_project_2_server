@@ -33,6 +33,9 @@ const { adminSettingRoutes } = require('../../domain/Admin/admin_setting.route')
 // Search
 const searchRoute = require('../../domain/Search/search.route');
 
+// Coupon Code
+const couponCodeRoute = require('../../domain/CouponCodes/couponCodes.route');
+
 const router = express.Router();
 
 const defaultRoutes = [
@@ -99,6 +102,10 @@ const defaultRoutes = [
   {
     path: '/admin/time-slot',
     route: timeSlotRoute,
+  },
+  {
+    path: '/admin/coupon-code',
+    route: couponCodeRoute,
   },
   {
     path: '/admin/class-no',

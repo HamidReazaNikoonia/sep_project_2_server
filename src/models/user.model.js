@@ -86,7 +86,7 @@ const userSchema = mongoose.Schema(
     },
     avatar: {
       type: Schema.Types.ObjectId,
-      required: true,
+      required: false,
       ref: 'Upload',
       autopopulate: true,
     },

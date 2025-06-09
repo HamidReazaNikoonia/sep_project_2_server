@@ -1,10 +1,12 @@
 const multer = require('multer');
-// define multer storage configuration
+const path = require('path');
 
-const generateRandomId = Math.floor((Math.random() * 1000000) + 1);
+const generateRandomId = Math.floor(Math.random() * 1000000 + 1);
 const storage = multer.diskStorage({
   destination(req, file, callback) {
-    callback(null, `${process.env.PWD}/storage/`);
+    // Use path.join with __dirname for a reliable absolute path
+    const storagePath = path.join(__dirname, '../../../storage/');
+    callback(null, storagePath);
   },
   filename(req, file, callback) {
     callback(null, `${generateRandomId}-${file.originalname}`);

@@ -16,6 +16,14 @@ router.post('/', uploder.single('file'), async (req, res) => {
       return;
     }
 
+    // Debug information to help diagnose the issue
+    // eslint-disable-next-line no-console
+    console.log('File object:', {
+      path: file.path,
+      destination: file.destination,
+      filename: file.filename,
+    });
+
     const fileUploded = {
       file_name: file.filename,
       field_name: file.fieldname,

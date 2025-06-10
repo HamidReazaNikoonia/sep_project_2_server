@@ -77,21 +77,18 @@ const classProgramSchema = mongoose.Schema(
         sub_title: String,
       },
     ],
-    sample_media: {
-      type: [
-        {
-          media_type: String,
-          media_title: String,
-          url_address: String,
-          file: {
-            type: Schema.Types.ObjectId,
-            ref: 'Upload',
-            autopopulate: true,
-          },
+    sample_media: [
+      {
+        media_type: String,
+        media_title: String,
+        url_address: String,
+        file: {
+          type: Schema.Types.ObjectId,
+          ref: 'Upload',
+          autopopulate: true,
         },
-      ],
-      required: false,
-    },
+      },
+    ],
     packages: [
       {
         type: mongoose.Schema.Types.ObjectId,

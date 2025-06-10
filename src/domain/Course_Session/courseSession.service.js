@@ -416,9 +416,10 @@ const getAllProgramsOFSpecificCourse = async (courseId) => {
   // Find all class programs for the specified course
   const programs = await classProgramModel
     .find({ course: courseId })
-    .populate('coach', 'first_name last_name avatar') // Populate coach details
-    .populate('course', 'title sub_title thumbnail') // Populate basic course info
-    .lean();
+  .populate('coach', 'first_name last_name avatar') // Populate coach details
+  .populate('course', 'title sub_title thumbnail') // Populate basic course info
+  .populate('sample_media.file')
+  .lean();
 
   // Transform dates to Jalaali format for response
   const transformedPrograms = programs.map((program) => {

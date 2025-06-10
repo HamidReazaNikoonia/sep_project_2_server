@@ -11,7 +11,13 @@ const CouponCode = require('./couponCodes.model');
  */
 const createCouponCode = async (couponBody, userId) => {
   const coupon = new CouponJS();
-  const generatedCode = coupon.generate();
+  const generatedCode = coupon.generate({
+    length: 8,
+    prefix: 'AVANO-',
+    characterSet: {
+      builtIn: ['CHARSET_ALPHA', 'CHARSET_DIGIT'],
+    },
+  });
 
   // Check if coupon code already exists
   const existingCoupon = await CouponCode.findOne({ code: generatedCode });

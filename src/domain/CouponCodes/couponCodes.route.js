@@ -9,7 +9,7 @@ const router = express.Router();
 // Admin routes for managing coupon codes
 router
   .route('/')
-  .post(auth(), validate(couponValidation.createCouponCode), couponController.createCouponCode)
+  .post(auth(), couponController.createCouponCode)
   .get(auth(), validate(couponValidation.getCouponCodes), couponController.getCouponCodes);
 
 router

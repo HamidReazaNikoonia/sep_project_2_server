@@ -27,3 +27,10 @@ yarn-error.log*
 
 # Upload Storage
 /storage
+
+# Mongo DB Back-up
+/mongodb-back-up
+
+
+# Cursor
+.cursorignore

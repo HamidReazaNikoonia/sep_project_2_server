@@ -12,15 +12,16 @@ services:
       - mongodb
     volumes:
       - .:/usr/src/node-app
+      - ./mongodb-init.js:/docker-entrypoint-initdb.d/init.js:ro
     networks:
       - node-network
 
   mongodb:
     image: mongo:4.2.1-bionic
     ports:
-      - '27017:27017'
+      - '27018:27017'
     volumes:
-      - dbdata:/data/db1
+      - ./mongodb-back-up:/data/db
     networks:
       - node-network
 

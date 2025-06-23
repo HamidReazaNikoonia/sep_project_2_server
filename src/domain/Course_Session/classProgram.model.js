@@ -93,6 +93,7 @@ const classProgramSchema = mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Session_Package',
+        autopopulate: true,
       },
     ],
     price_real: {

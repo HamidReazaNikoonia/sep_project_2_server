@@ -6,6 +6,7 @@ const profileSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      autopopulate: true,
     },
     likedProduct: [
       {
@@ -28,6 +29,8 @@ const profileSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+profileSchema.plugin(require('mongoose-autopopulate'));
 
 const Profile = mongoose.model('Profile', profileSchema);
 module.exports = Profile;

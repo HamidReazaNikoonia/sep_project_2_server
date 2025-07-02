@@ -27,12 +27,15 @@ const updateProfile = catchAsync(async (req, res) => {
 // Update liked products or courses
 const completeProfile = catchAsync(async (req, res) => {
   const { user_id } = req.params;
-  const { name, family, gender } = req.body;
+  const { name, family, gender, national_card_images, nationalId, avatar } = req.body;
 
   const updatedProfile = await profileService.completeProfile(user_id, req.user, {
     name,
     family,
     gender,
+    national_card_images,
+    nationalId,
+    avatar,
   });
 
   res.status(httpStatus.OK).send(updatedProfile);

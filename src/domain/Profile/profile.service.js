@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 /* eslint-disable no-restricted-syntax */
 const httpStatus = require('http-status');
 const ApiError = require('../../utils/ApiError');
@@ -62,7 +63,7 @@ const updateProfile = async (userId, updateData) => {
   return profile;
 };
 
-const completeProfile = async (userId, user, { name, family, gender }) => {
+const completeProfile = async (userId, user, { name, family, gender, national_card_images, nationalId, avatar }) => {
   // const profile = await Profile.findOne({ user: userId });
 
   if (!user.id) {
@@ -89,6 +90,16 @@ const completeProfile = async (userId, user, { name, family, gender }) => {
   currentUser.first_name = name;
   currentUser.last_name = family;
   currentUser.gender = gender;
+
+  if (national_card_images) {
+    currentUser.national_card_images = national_card_images;
+  }
+  if (nationalId) {
+    currentUser.nationalId = nationalId;
+  }
+  if (avatar) {
+    currentUser.avatar = avatar;
+  }
 
   const savedUser = await currentUser.save();
 

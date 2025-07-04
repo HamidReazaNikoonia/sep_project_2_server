@@ -442,6 +442,32 @@ const getAllProgramsOFSpecificCourse = async (courseId) => {
   return transformedPrograms;
 };
 
+const getSpecificProgram = async (programId) => {
+  // Find specific program by ID
+  const program = await classProgramModel
+    .findById(programId)
+    .populate('coach', 'first_name last_name avatar') // Populate coach details
+    .populate('course', 'title sub_title thumbnail') // Populate basic course info
+    .populate('sample_media.file')
+    .populate('packages')
+    .lean();
+
+  if (!program) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Program not found');
+  }
+
+  // Transform dates to Jalaali format
+  const transformedSessions = program.sessions.map((session) => ({
+    ...session,
+    date: momentJalaali(session.date).format('jYYYY/jM/jD'), // Convert to Jalaali
+  }));
+
+  return {
+    ...program,
+    sessions: transformedSessions,
+  };
+};
+
 // const updateCourseSessionForAssignCoachAndTimeSlot = async (
 //   courseId,
 //   { coach_id, date, start_time, end_time, class_id, max_member_accept }
@@ -690,6 +716,7 @@ module.exports = {
   deleteCourse,
   updateCourse,
   getAllProgramsOFSpecificCourse,
+  getSpecificProgram,
   // updateCourseSessionForAssignCoachAndTimeSlot,
   createClassProgram,
   sendFileDirectly,

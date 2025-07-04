@@ -281,6 +281,12 @@ const createCourseSessionPackage = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(packages);
 });
 
+const getSpecificProgram = catchAsync(async (req, res) => {
+  const { program_id } = req.params;
+  const program = await courseSesshionService.getSpecificProgram(program_id);
+  res.status(httpStatus.OK).send(program);
+});
+
 module.exports = {
   // admin
   getAllCoursesSessionForAdmin,
@@ -301,4 +307,5 @@ module.exports = {
   // package
   getAllCourseSessionPackage,
   createCourseSessionPackage,
+  getSpecificProgram,
 };

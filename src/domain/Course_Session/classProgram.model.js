@@ -58,7 +58,7 @@ const classProgramSchema = mongoose.Schema(
   {
     course: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Course',
+      ref: 'Course_Session',
       required: true,
     },
     coach: {

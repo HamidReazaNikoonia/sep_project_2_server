@@ -287,6 +287,48 @@ const getSpecificProgram = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(program);
 });
 
+/**
+ *   Course Session Order Checkout Process
+ *
+ */
+
+const calculateOrderSummary = catchAsync(async (req, res) => {
+  const { classProgramId, couponCodes } = req.body;
+
+  if (!req.user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
+  }
+
+  // Validate course ID
+  if (!mongoose.Types.ObjectId.isValid(classProgramId)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID');
+  }
+
+  // Calculate Order Summary
+  const summary = await courseSesshionService.calculateOrderSummary({ user: req.user, classProgramId, couponCodes });
+
+  if (!summary) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Could not calculate order summary from $calculateOrderSummary');
+  }
+
+  res.send(summary);
+});
+
+// Course Session Order
+const createCourseSessionOrder = catchAsync(async (req, res) => {
+  if (!req.user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
+  }
+
+  // Validate course ID
+  if (!mongoose.Types.ObjectId.isValid(req.body.classProgramId)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID');
+  }
+
+  const order = await courseSesshionService.createCourseSessionOrder({ requestBody: req.body, user: req.user });
+  res.status(httpStatus.CREATED).send(order);
+});
+
 module.exports = {
   // admin
   getAllCoursesSessionForAdmin,
@@ -308,4 +350,7 @@ module.exports = {
   getAllCourseSessionPackage,
   createCourseSessionPackage,
   getSpecificProgram,
+  // checkout order
+  createCourseSessionOrder,
+  calculateOrderSummary,
 };

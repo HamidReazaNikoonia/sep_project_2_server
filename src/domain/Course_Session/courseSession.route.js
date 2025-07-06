@@ -1,7 +1,7 @@
 const express = require('express');
 const courseController = require('./courseSession.controller');
 const categoryController = require('./Category/category.controller');
-// const auth = require('../../middlewares/auth');
+const auth = require('../../middlewares/auth');
 const validate = require('../../middlewares/validate');
 
 const { courseCategoryValidation } = require('./courseSession.validation');
@@ -41,6 +41,11 @@ router.get('/category/:id', categoryController.getCategoryById);
 // get Specific course-session Program by id
 router.get('/program/:program_id', courseController.getSpecificProgram);
 // /// ///////
+
+// ********** CHECKOUT ORDER **********
+// Pre checkout Order
+router.post('/calculate-order', auth(), courseController.calculateOrderSummary);
+
 router.get('/:slug', courseController.getCourseBySlugOrId);
 
 // // Update a course
@@ -49,8 +54,6 @@ router.put('/:course_id', courseController.updateCourse);
 // Update and assign a coach to a course
 router.put('/:course_id/assign-coach', courseController.assignClassProgram);
 router.get('/:course_id/program', courseController.getAllProgramsOFSpecificCourse);
-
-
 
 // // Delete a course
 router.delete('/:course_id', courseController.deleteCourse);

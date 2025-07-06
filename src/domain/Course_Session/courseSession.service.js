@@ -13,8 +13,12 @@ const APIFeatures = require('../../utils/APIFeatures');
 const Coach = require('../Coach/coach.model');
 const User = require('../../models/user.model'); // Assuming User model exists
 const Profile = require('../Profile/profile.model');
+const CourseSessionOrderModel = require('./courseSession.order.model');
+const CouponCode = require('../CouponCodes/couponCodes.model');
 // const ClassNo = require('../ClassNo/classNo.model');
 const { classProgramModel, sessionPackageModel } = require('./classProgram.model');
+
+const OrderId = require('../../utils/orderId');
 
 const ApiError = require('../../utils/ApiError');
 
@@ -705,6 +709,178 @@ const createCourseSessionPackage = async (requestBody) => {
   return createdPackage;
 };
 
+/**
+ *
+ *  Course Session Order Checkout
+ */
+
+// checkout order
+const createCourseSessionOrder = async ({ requestBody, user }) => {
+  const { courseSessionId, classProgramId } = requestBody;
+
+  const orderData = {
+    courseSessionId,
+    classProgramId,
+    userId: user.id,
+  };
+
+  // Generate Ref
+  const orderIdGenerator = OrderId('course_session_order');
+  const randomRef = Math.floor(Math.random() * 1000);
+  const refrenceId = `COURSE_SESSION_ORDER_${orderIdGenerator.generate()}-${randomRef}`;
+
+  orderData.reference = refrenceId;
+
+    // Calculate Total Price
+    const tprice = 10000;
+    const TAX_CONSTANT = 10000;
+    const totalPrice = tprice + TAX_CONSTANT;
+
+  const order = await CourseSessionOrderModel.create(orderData);
+
+  if (!order) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Order could not be created (AT STORE IN DB)');
+  }
+
+  return order;
+};
+
+/**
+ * Calculate order summary with applied coupons
+ * @param {ObjectId} userId
+ * @param {ObjectId} courseSessionProgramId
+ * @param {Array<string>} couponCodes
+ * @returns {Promise<Object>}
+ */
+const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [] }) => {
+  // Get course session
+  const courseSessionclassProgram = await classProgramModel.findById(classProgramId);
+  if (!courseSessionclassProgram) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Course session Program not found');
+  }
+
+  const originalAmount = courseSessionclassProgram.price_discounted || courseSessionclassProgram.price_real;
+  let validCoupons = [];
+  let invalidCoupons = [];
+  let totalDiscount = 0;
+
+  // Process each coupon code
+  for (const code of couponCodes) {
+    try {
+      const coupon = await CouponCode.findOne({
+        code: code.toUpperCase(),
+        is_active: true,
+        valid_from: { $lte: new Date() },
+        valid_until: { $gte: new Date() },
+        $expr: { $lt: ['$current_uses', '$max_uses'] }
+      });
+
+      // console.log('coupon', coupon);
+
+      if (!coupon) {
+        invalidCoupons.push({
+          code,
+          reason: 'Invalid or expired coupon code'
+        });
+        continue;
+      }
+
+      // Check minimum purchase amount
+      if (originalAmount < coupon.min_purchase_amount) {
+        invalidCoupons.push({
+          code,
+          reason: `Minimum purchase amount of ${coupon.min_purchase_amount} required`
+        });
+        continue;
+      }
+
+      // Check course applicability
+      if (coupon.applicable_courses?.length > 0) {
+        const isApplicable = coupon.applicable_courses.some(ac =>
+          (ac.target_type === 'COURSE_SESSION' && ac.target_id.equals(courseSessionId)) ||
+          (ac.target_type === 'COURSE' && ac.target_id.equals(courseSession.courseId))
+        );
+
+        if (!isApplicable) {
+          invalidCoupons.push({
+            code,
+            reason: 'Coupon not applicable for this course/session'
+          });
+          continue;
+        }
+      }
+
+      // For referral type coupons, check if it's created by the same user
+      if (coupon.type === 'REFERRAL' && coupon.created_by.equals(userId)) {
+        invalidCoupons.push({
+          code,
+          reason: 'Cannot use your own referral code'
+        });
+        continue;
+      }
+
+      // Calculate discount
+      let discountAmount;
+      if (coupon.discount_type === 'PERCENTAGE') {
+        discountAmount = Math.min(
+          (originalAmount * coupon.discount_value) / 100,
+          originalAmount
+        );
+      } else { // FIXED_AMOUNT
+        discountAmount = Math.min(coupon.discount_value, originalAmount);
+      }
+
+      totalDiscount += discountAmount;
+      validCoupons.push({
+        couponId: coupon._id,
+        discountAmount
+      });
+
+    } catch (error) {
+      console.log(error);
+      console.log('Error processing coupon');
+
+      invalidCoupons.push({
+        code,
+        reason: 'Error processing coupon'
+      });
+    }
+  }
+
+
+
+  // Calculate final amount
+  const calculatePrice = Math.max(0, originalAmount - totalDiscount);
+
+  // Calculate Total Price
+  const TAX_CONSTANT = 10000;
+  const finalAmount = calculatePrice  + TAX_CONSTANT;
+
+
+  return {
+    courseSession: {
+      program: courseSessionclassProgram,
+      price: originalAmount,
+      tax: TAX_CONSTANT,
+      totalPrice: calculatePrice,
+      discount: totalDiscount,
+      finalAmount: finalAmount,
+    },
+    summary: {
+      originalAmount,
+      totalDiscount,
+      finalAmount
+    },
+    coupons: {
+      valid: validCoupons.map(vc => ({
+        ...vc,
+        code: couponCodes[validCoupons.indexOf(vc)]
+      })),
+      invalid: invalidCoupons
+    }
+  };
+};
+
 module.exports = {
   checkCoachAvailability,
   // ADMIN
@@ -729,4 +905,7 @@ module.exports = {
   // packages
   getAllCourseSessionPackage,
   createCourseSessionPackage,
+  // order chekout
+  createCourseSessionOrder,
+  calculateOrderSummary,
 };

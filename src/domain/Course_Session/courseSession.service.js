@@ -754,7 +754,7 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
  */
 const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [] }) => {
   // Get course session
-  const courseSessionclassProgram = await classProgramModel.findById(classProgramId);
+  const courseSessionclassProgram = await classProgramModel.findById(classProgramId).populate('coach').populate('course');
   if (!courseSessionclassProgram) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Course session Program not found');
   }
@@ -858,18 +858,30 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [] })
 
 
   return {
-    courseSession: {
-      program: courseSessionclassProgram,
-      price: originalAmount,
-      tax: TAX_CONSTANT,
-      totalPrice: calculatePrice,
-      discount: totalDiscount,
-      finalAmount: finalAmount,
-    },
+
+      program: {
+        ...courseSessionclassProgram.toObject(),
+        coach: {
+          _id: courseSessionclassProgram.coach._id,
+          name: courseSessionclassProgram.coach.name,
+          first_name: courseSessionclassProgram.coach.first_name,
+          last_name: courseSessionclassProgram.coach.last_name,
+        },
+        course: {
+          _id: courseSessionclassProgram.course._id,
+          title: courseSessionclassProgram.course.title,
+        }
+      },
+    // originalAmount = program price || program discounted price
+    // originalAmount = sum all coupon discount
+    // finalAmount = ( originalAmount - totalDiscount ) + TAX_CONSTANT
+    // totalPrice = originalAmount - totalDiscount
     summary: {
       originalAmount,
       totalDiscount,
-      finalAmount
+      finalAmount,
+      tax: TAX_CONSTANT,
+      totalPrice: calculatePrice,
     },
     coupons: {
       valid: validCoupons.map(vc => ({

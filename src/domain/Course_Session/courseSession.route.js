@@ -44,7 +44,7 @@ router.get('/program/:program_id', courseController.getSpecificProgram);
 
 // ********** CHECKOUT ORDER **********
 // Pre checkout Order
-router.post('/calculate-order', auth(), courseController.calculateOrderSummary);
+router.post('/calculate-order-summary', auth(), courseController.calculateOrderSummary);
 
 router.get('/:slug', courseController.getCourseBySlugOrId);
 

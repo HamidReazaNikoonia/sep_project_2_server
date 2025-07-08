@@ -4,6 +4,7 @@
 /* eslint-disable no-return-await */
 const path = require('node:path');
 const fs = require('node:fs');
+const mongoose = require('mongoose');
 const httpStatus = require('http-status');
 const momentJalaali = require('moment-jalaali');
 const { CourseSession, CourseSessionCategory, CourseSessionSubCategory } = require('./courseSession.model');
@@ -752,12 +753,38 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
  * @param {Array<string>} couponCodes
  * @returns {Promise<Object>}
  */
-const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [] }) => {
+const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], packages = [] }) => {
   // Get course session
   const courseSessionclassProgram = await classProgramModel.findById(classProgramId).populate('coach').populate('course');
   if (!courseSessionclassProgram) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Course session Program not found');
   }
+
+  // Calculate total price of packages
+  let totalPackagePrice = 0;
+  const selectedPackages = [];
+   // Validate course ID
+  if (packages.length > 0 ) {
+    if (packages.every(pkg => mongoose.Types.ObjectId.isValid(pkg))) {
+      const packagesDocs = await sessionPackageModel.find({ _id: { $in: packages } }).lean();
+      if (packages.length !== packagesDocs.length) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'One or more packages not found');
+      }
+
+      // Calculate total price of packages
+      totalPackagePrice = packagesDocs.reduce((acc, _package) => acc + _package.price, 0) || 0;
+      packagesDocs.map(pkg => {
+        selectedPackages.push({
+          _id: pkg._id,
+          title: pkg.title,
+          price: pkg.price,
+        })
+      })
+    }
+
+  }
+
+  console.log('totalPackagePrice', totalPackagePrice);
 
   const originalAmount = courseSessionclassProgram.price_discounted || courseSessionclassProgram.price_real;
   let validCoupons = [];
@@ -822,6 +849,8 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [] })
       // Calculate discount
       let discountAmount;
       if (coupon.discount_type === 'PERCENTAGE') {
+        // Math.min ensures the discount doesn't exceed the original amount
+        // e.g. if discount is 150%, we cap it at 100% of original amount
         discountAmount = Math.min(
           (originalAmount * coupon.discount_value) / 100,
           originalAmount
@@ -854,7 +883,7 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [] })
 
   // Calculate Total Price
   const TAX_CONSTANT = 10000;
-  const finalAmount = calculatePrice  + TAX_CONSTANT;
+  const finalAmount = (calculatePrice  + TAX_CONSTANT) + totalPackagePrice;
 
 
   return {
@@ -874,7 +903,7 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [] })
       },
     // originalAmount = program price || program discounted price
     // originalAmount = sum all coupon discount
-    // finalAmount = ( originalAmount - totalDiscount ) + TAX_CONSTANT
+    // finalAmount = ( originalAmount - totalDiscount ) + TAX_CONSTANT + totalPackagePrice
     // totalPrice = originalAmount - totalDiscount
     summary: {
       originalAmount,
@@ -882,7 +911,9 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [] })
       finalAmount,
       tax: TAX_CONSTANT,
       totalPrice: calculatePrice,
+      totalPackagePrice,
     },
+    packages: selectedPackages || [],
     coupons: {
       valid: validCoupons.map(vc => ({
         ...vc,

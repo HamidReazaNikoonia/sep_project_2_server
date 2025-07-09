@@ -9,6 +9,8 @@ const httpStatus = require('http-status');
 const momentJalaali = require('moment-jalaali');
 const { CourseSession, CourseSessionCategory, CourseSessionSubCategory } = require('./courseSession.model');
 const APIFeatures = require('../../utils/APIFeatures');
+const ZarinpalCheckout = require('../../services/payment');
+const config = require('../../config/config');
 
 // Models
 const Coach = require('../Coach/coach.model');
@@ -16,6 +18,7 @@ const User = require('../../models/user.model'); // Assuming User model exists
 const Profile = require('../Profile/profile.model');
 const CourseSessionOrderModel = require('./courseSession.order.model');
 const CouponCode = require('../CouponCodes/couponCodes.model');
+const Transaction = require('../Transaction/transaction.model');
 // const ClassNo = require('../ClassNo/classNo.model');
 const { classProgramModel, sessionPackageModel } = require('./classProgram.model');
 
@@ -46,6 +49,30 @@ const ApiError = require('../../utils/ApiError');
 
 //   return conflictingSessions.length === 0;
 // };
+
+// Assuming validCoupons is an array of objects with couponId
+const applyCoupons = async (validCoupons) => {
+  const results = await Promise.all(
+    validCoupons.map(async ({ couponId }) => {
+      const coupon = await CouponCode.findById(couponId);
+      if (!coupon) {
+        throw new ApiError(httpStatus.NOT_FOUND, `Coupon with id ${couponId} not found`);
+      }
+
+      const isUsed = await coupon.use();
+      if (!isUsed) {
+        throw new ApiError(httpStatus.BAD_REQUEST, `Coupon ${coupon.code} is no longer valid`);
+      }
+
+      return {
+        couponId: coupon._id,
+        discountAmount: validCoupons.find((vc) => vc.couponId.equals(coupon._id)).discountAmount,
+      };
+    })
+  );
+
+  return results;
+};
 
 const checkCoachAvailability = async (coachId, date, startTime, endTime) => {
   // Convert Jalaali date to Gregorian for query
@@ -717,33 +744,149 @@ const createCourseSessionPackage = async (requestBody) => {
 
 // checkout order
 const createCourseSessionOrder = async ({ requestBody, user }) => {
-  const { courseSessionId, classProgramId } = requestBody;
+  const { courseSessionId, classProgramId, couponCodes, packages } = requestBody;
 
+  // var
+  // let validPackages = null;
   const orderData = {
     courseSessionId,
     classProgramId,
     userId: user.id,
+    paymentMethod: 'ZARINPAL',
   };
+
+  /**
+   *  Validation
+   */
+
+  // * Check If Program Exist by Id ( requestBody.programId )
+  // const program = await classProgramModel.findById(classProgramId);
+  // if (!program) {
+  //   throw new ApiError(httpStatus.NOT_FOUND, 'Program not found');
+  // }
+
+  // Validate Packages Id if exist
+  // if (requestBody?.packages && requestBody?.packages?.length > 0) {
+  //   if (!requestBody.packages.every((pkg) => mongoose.Types.ObjectId.isValid(pkg))) {
+  //     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid package ID');
+  //   }
+
+  // * Get ALL Packages from `classProgramModel`
+  //   packages = await sessionPackageModel.find({ _id: { $in: requestBody.packages } });
+  //   if (packages.length !== requestBody.packages.length) {
+  //     throw new ApiError(httpStatus.NOT_FOUND, 'One or more packages not found');
+  //   }
+  // }
+
+  // IN THE CASE WE HAVE PACKAGES , ASSIGN IT TO THE `OrderData`
+  // if (packages) {
+  //   orderData.packages = packages.map((pkg) => pkg._id);
+  // }
+
+  // validate coupons
+
+  // assigned property @ orderData
+  // courseSessionId
+  // appliedCoupons
+  // transactionId
+  // [X] reference
+  // [X] originalAmount
+  // [X] program_price_discounted
+  // [X] program_price_real
+  // [X] packages (orderData.packages = requestBody.packages.map((pkg) => pkg._id);)
+
+  const {
+    program,
+    summary,
+    packages: validPackages,
+    coupons,
+    // eslint-disable-next-line no-use-before-define
+  } = await calculateOrderSummary({ user, classProgramId, couponCodes: couponCodes || [], packages: packages || [] });
+
+  // validate
+
+  if (!program || !summary) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid program or summary from $calculateOrderSummary service');
+  }
+
+  orderData.tax = summary.tax;
+  orderData.program_total_price = summary.ProgramTotalPrice;
+  orderData.total_discount = summary.totalDiscount;
+  orderData.program_original_price = summary.ProgramOriginalAmount;
+  orderData.program_price_real = program.price_real;
+  orderData.final_order_price = summary.finalAmount;
+
+  // implement prices
+  if (program.price_discounted) {
+    orderData.program_price_discounted = program.price_discounted;
+  }
+
+  if (summary.totalPackagePrice) {
+    orderData.total_packages_price = summary.totalPackagePrice;
+  }
+
+  // add packages if exist
+  if (validPackages?.length > 0) {
+    orderData.packages = validPackages.map((pkg) => pkg._id);
+  }
+
+  // check if valid coupon exist
+  if (coupons?.valid?.length > 0) {
+    orderData.appliedCoupons = coupons.valid.map((coupon) => ({
+      couponId: coupon.couponId,
+      discountAmount: coupon.discountAmount,
+    }));
+  }
 
   // Generate Ref
   const orderIdGenerator = OrderId('course_session_order');
   const randomRef = Math.floor(Math.random() * 1000);
-  const refrenceId = `COURSE_SESSION_ORDER_${orderIdGenerator.generate()}-${randomRef}`;
+  const refrenceId = `C-${orderIdGenerator.generate()}-${randomRef}`;
 
   orderData.reference = refrenceId;
 
-    // Calculate Total Price
-    const tprice = 10000;
-    const TAX_CONSTANT = 10000;
-    const totalPrice = tprice + TAX_CONSTANT;
+  // Payment Checkout ZARINPAL Process
 
-  const order = await CourseSessionOrderModel.create(orderData);
+  const newOrder = await CourseSessionOrderModel.create(orderData);
 
-  if (!order) {
+  if (!newOrder) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Order could not be created (AT STORE IN DB)');
   }
 
-  return order;
+  // Payment Checkout ZARINPAL Process
+
+  const zarinpal = ZarinpalCheckout.create('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', true);
+  const payment = await zarinpal.PaymentRequest({
+    Amount: newOrder.final_order_price,
+    CallbackURL: `${config.SERVER_API_URL}/course-session/order/${newOrder._id}/checkout`,
+    Description: '---------',
+    Mobile: user.mobile,
+    order_id: newOrder._id,
+  });
+
+  // validate Payment
+
+  if (!payment || payment.code !== 100) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `Payment Error with status => ${payment.code || null}`);
+  }
+
+  // TODO:: Implement Transaction
+  // Create New Transaction
+  const transaction = new Transaction({
+    userId: user.id,
+    order_id: newOrder._id,
+    amount: newOrder.final_order_price,
+    factorNumber: payment.authority,
+    tax: summary.tax,
+  });
+
+  const savedTransaction = await transaction.save();
+
+  if (!savedTransaction) {
+    throw new ApiError(httpStatus[500], 'Transaction Could Not Save In DB');
+  }
+
+  return { order: newOrder, transaction, payment };
 };
 
 /**
@@ -763,9 +906,9 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
   // Calculate total price of packages
   let totalPackagePrice = 0;
   const selectedPackages = [];
-   // Validate course ID
-  if (packages.length > 0 ) {
-    if (packages.every(pkg => mongoose.Types.ObjectId.isValid(pkg))) {
+  // Validate course ID
+  if (packages.length > 0) {
+    if (packages.every((pkg) => mongoose.Types.ObjectId.isValid(pkg))) {
       const packagesDocs = await sessionPackageModel.find({ _id: { $in: packages } }).lean();
       if (packages.length !== packagesDocs.length) {
         throw new ApiError(httpStatus.NOT_FOUND, 'One or more packages not found');
@@ -773,15 +916,14 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
 
       // Calculate total price of packages
       totalPackagePrice = packagesDocs.reduce((acc, _package) => acc + _package.price, 0) || 0;
-      packagesDocs.map(pkg => {
+      packagesDocs.map((pkg) => {
         selectedPackages.push({
           _id: pkg._id,
           title: pkg.title,
           price: pkg.price,
-        })
-      })
+        });
+      });
     }
-
   }
 
   console.log('totalPackagePrice', totalPackagePrice);
@@ -799,7 +941,7 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
         is_active: true,
         valid_from: { $lte: new Date() },
         valid_until: { $gte: new Date() },
-        $expr: { $lt: ['$current_uses', '$max_uses'] }
+        $expr: { $lt: ['$current_uses', '$max_uses'] },
       });
 
       // console.log('coupon', coupon);
@@ -807,7 +949,7 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
       if (!coupon) {
         invalidCoupons.push({
           code,
-          reason: 'Invalid or expired coupon code'
+          reason: 'Invalid or expired coupon code',
         });
         continue;
       }
@@ -816,32 +958,33 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
       if (originalAmount < coupon.min_purchase_amount) {
         invalidCoupons.push({
           code,
-          reason: `Minimum purchase amount of ${coupon.min_purchase_amount} required`
+          reason: `Minimum purchase amount of ${coupon.min_purchase_amount} required`,
         });
         continue;
       }
 
       // Check course applicability
       if (coupon.applicable_courses?.length > 0) {
-        const isApplicable = coupon.applicable_courses.some(ac =>
-          (ac.target_type === 'COURSE_SESSION' && ac.target_id.equals(courseSessionId)) ||
-          (ac.target_type === 'COURSE' && ac.target_id.equals(courseSession.courseId))
+        const isApplicable = coupon.applicable_courses.some(
+          (ac) =>
+            (ac.target_type === 'COURSE_SESSION' && ac.target_id.equals(CourseSession)) ||
+            (ac.target_type === 'COURSE' && ac.target_id.equals(CourseSession.courseId))
         );
 
         if (!isApplicable) {
           invalidCoupons.push({
             code,
-            reason: 'Coupon not applicable for this course/session'
+            reason: 'Coupon not applicable for this course/session',
           });
           continue;
         }
       }
 
       // For referral type coupons, check if it's created by the same user
-      if (coupon.type === 'REFERRAL' && coupon.created_by.equals(userId)) {
+      if (coupon.type === 'REFERRAL' && coupon.created_by.equals(user)) {
         invalidCoupons.push({
           code,
-          reason: 'Cannot use your own referral code'
+          reason: 'Cannot use your own referral code',
         });
         continue;
       }
@@ -851,78 +994,73 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
       if (coupon.discount_type === 'PERCENTAGE') {
         // Math.min ensures the discount doesn't exceed the original amount
         // e.g. if discount is 150%, we cap it at 100% of original amount
-        discountAmount = Math.min(
-          (originalAmount * coupon.discount_value) / 100,
-          originalAmount
-        );
-      } else { // FIXED_AMOUNT
+        discountAmount = Math.min((originalAmount * coupon.discount_value) / 100, originalAmount);
+      } else {
+        // FIXED_AMOUNT
         discountAmount = Math.min(coupon.discount_value, originalAmount);
       }
 
       totalDiscount += discountAmount;
       validCoupons.push({
         couponId: coupon._id,
-        discountAmount
+        discountAmount,
       });
-
     } catch (error) {
       console.log(error);
       console.log('Error processing coupon');
 
       invalidCoupons.push({
         code,
-        reason: 'Error processing coupon'
+        reason: 'Error processing coupon',
       });
     }
   }
-
-
 
   // Calculate final amount
   const calculatePrice = Math.max(0, originalAmount - totalDiscount);
 
   // Calculate Total Price
   const TAX_CONSTANT = 10000;
-  const finalAmount = (calculatePrice  + TAX_CONSTANT) + totalPackagePrice;
-
+  const finalAmount = calculatePrice + TAX_CONSTANT + totalPackagePrice;
 
   return {
-
-      program: {
-        ...courseSessionclassProgram.toObject(),
-        coach: {
-          _id: courseSessionclassProgram.coach._id,
-          name: courseSessionclassProgram.coach.name,
-          first_name: courseSessionclassProgram.coach.first_name,
-          last_name: courseSessionclassProgram.coach.last_name,
-        },
-        course: {
-          _id: courseSessionclassProgram.course._id,
-          title: courseSessionclassProgram.course.title,
-        }
+    program: {
+      ...courseSessionclassProgram.toObject(),
+      coach: {
+        _id: courseSessionclassProgram.coach._id,
+        name: courseSessionclassProgram.coach.name,
+        first_name: courseSessionclassProgram.coach.first_name,
+        last_name: courseSessionclassProgram.coach.last_name,
       },
+      course: {
+        _id: courseSessionclassProgram.course._id,
+        title: courseSessionclassProgram.course.title,
+      },
+    },
     // originalAmount = program price || program discounted price
     // originalAmount = sum all coupon discount
     // finalAmount = ( originalAmount - totalDiscount ) + TAX_CONSTANT + totalPackagePrice
     // totalPrice = originalAmount - totalDiscount
     summary: {
-      originalAmount,
+      ProgramOriginalAmount: originalAmount,
       totalDiscount,
       finalAmount,
       tax: TAX_CONSTANT,
-      totalPrice: calculatePrice,
+      ProgramTotalPrice: calculatePrice,
       totalPackagePrice,
     },
     packages: selectedPackages || [],
     coupons: {
-      valid: validCoupons.map(vc => ({
+      valid: validCoupons.map((vc) => ({
         ...vc,
-        code: couponCodes[validCoupons.indexOf(vc)]
+        code: couponCodes[validCoupons.indexOf(vc)],
       })),
-      invalid: invalidCoupons
-    }
+      invalid: invalidCoupons,
+    },
   };
 };
+
+
 
 module.exports = {
   checkCoachAvailability,

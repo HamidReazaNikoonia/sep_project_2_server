@@ -13,6 +13,10 @@ const sessionPackagesSchema = new mongoose.Schema({
     min: [10000, 'Price must be at least 10,000.'],
     required: true,
   },
+  avatar: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Upload',
+  },
 });
 
 const sessionSchema = new mongoose.Schema(

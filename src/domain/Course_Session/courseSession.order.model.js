@@ -1,12 +1,21 @@
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('../../models/plugins');
 
+/**
+ *  GUIDE
+ * program_original_price === program Real Price || Discounted Program Price
+ * total_packages_price === Sum of Packages Prices
+ * total_discount === Sum of Coupon Prices
+ * program_total_price === program_original_price - total discount (Sum of coupon)
+ * final_order_price === program_total_price + total_packages_price + tax
+ */
+
 const courseSessionOrderSchema = new mongoose.Schema(
   {
     courseSessionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Course_Session',
-      required: true,
+      required: false,
     },
     classProgramId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -28,13 +37,33 @@ const courseSessionOrderSchema = new mongoose.Schema(
       enum: ['unpaid', 'paid', 'refunded'],
       default: 'unpaid',
     },
-    originalAmount: {
+    final_order_price: {
+      type: Number,
+      required: false,
+    },
+    program_original_price: {
+      type: Number,
+      required: false,
+    },
+    program_price_discounted: {
+      type: Number,
+      required: false,
+    },
+    program_price_real: {
       type: Number,
       required: true,
     },
-    amount: {
+    program_total_price: {
       type: Number,
       required: true,
+    },
+    total_packages_price: {
+      type: Number,
+      required: false,
+    },
+    total_discount: {
+      type: Number,
+      required: false,
     },
     appliedCoupons: [
       {
@@ -60,6 +89,13 @@ const courseSessionOrderSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    packages: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Session_Package',
+        required: false,
+      },
+    ],
   },
   {
     timestamps: true,

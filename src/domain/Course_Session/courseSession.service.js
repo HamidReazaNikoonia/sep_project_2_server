@@ -1,3 +1,4 @@
+/* eslint-disable no-unreachable */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable camelcase */
@@ -858,7 +859,7 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
   const zarinpal = ZarinpalCheckout.create('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', true);
   const payment = await zarinpal.PaymentRequest({
     Amount: newOrder.final_order_price,
-    CallbackURL: `${config.SERVER_API_URL}/course-session/order/${newOrder._id}/checkout`,
+    CallbackURL: `${config.SERVER_API_URL}/course-session/order/${newOrder._id}/validate-checkout`,
     Description: '---------',
     Mobile: user.mobile,
     order_id: newOrder._id,
@@ -1060,7 +1061,94 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
   };
 };
 
+const validateCheckoutCourseSessionOrder = async ({ orderId, user, Authority: authorityCode, Status: paymentStatus }) => {
+  if (!paymentStatus || !authorityCode) {
+    return false;
+    // throw new ApiError(httpStatus.BAD_REQUEST, 'Query not exist from zarinpal');
+  }
 
+  const order = await CourseSessionOrderModel.findById(orderId);
+
+  if (!order) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+
+  // get Transaction
+  const transaction = await Transaction.findOne({ order_id: order._id });
+
+  if (!transaction) {
+    // return false;
+    throw new ApiError(httpStatus.NOT_FOUND, 'Transaction not found');
+  }
+
+  // Transaction Amount Should be same with order.final_order_price
+  if (transaction.amount !== order.final_order_price) {
+    // return false;
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Transaction amount is not equal to order final price');
+  }
+
+  const zarinpal = ZarinpalCheckout.create('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', true);
+  const payment = await zarinpal.PaymentVerification({
+    amount: transaction.amount,
+    authority: authorityCode,
+  });
+
+  // Payment Failed
+  if (!payment?.data) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Payment Has Error From Bank');
+  }
+
+  if (payment?.data?.code !== 100) {
+    switch (payment.data.code) {
+      case -55:
+        throw new ApiError(httpStatus.BAD_REQUEST, 'تراکنش مورد نظر یافت نشد');
+        break;
+      case -52:
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          ' خطای غیر منتظره‌ای رخ داده است. پذیرنده مشکل خود را به امور مشتریان زرین‌پال ارجاع دهد.'
+        );
+        break;
+      case -50:
+        throw new ApiError(httpStatus.BAD_REQUEST, 'مبلغ پرداخت شده با مقدار مبلغ ارسالی در متد وریفای متفاوت است.');
+        break;
+      default:
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `Payment Transaction Faild From ZarinPal with code => ${payment.data.code} `
+        );
+    }
+  }
+
+  if (payment.data.code === 101) {
+    throw new ApiError(httpStatus[201], 'تراکنش وریفای شده است.');
+  }
+
+  // Payment Information
+  const payment_details = {
+    code: payment.data.code,
+    message: payment.data.message,
+    card_hash: payment.data.card_hash,
+    card_pan: payment.data.card_pan,
+    fee_type: payment.data.fee_type,
+    fee: payment.data.fee,
+    shaparak_fee: payment.data.shaparak_fee,
+  };
+
+  // Transaction Pay Successfully
+  if (payment.data.code === 100 && payment.data.message === 'Paid') {
+    // Update Transaction
+    transaction.status = true;
+    transaction.payment_reference_id = payment.data.ref_id;
+    transaction.payment_details = payment_details;
+    await transaction.save();
+
+    order.paymentStatus = 'paid';
+    await order.save();
+  }
+
+  return { order, transaction, payment };
+};
 
 module.exports = {
   checkCoachAvailability,
@@ -1089,4 +1177,5 @@ module.exports = {
   // order chekout
   createCourseSessionOrder,
   calculateOrderSummary,
+  validateCheckoutCourseSessionOrder,
 };

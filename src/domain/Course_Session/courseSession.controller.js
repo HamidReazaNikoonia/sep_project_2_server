@@ -6,6 +6,9 @@ const catchAsync = require('../../utils/catchAsync');
 const ApiError = require('../../utils/ApiError');
 const pick = require('../../utils/pick');
 
+// config
+const config = require('../../config/config');
+
 const courseSesshionService = require('./courseSession.service');
 
 // models
@@ -334,6 +337,37 @@ const createCourseSessionOrder = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(order);
 });
 
+// Course Session Order
+const validateCheckoutCourseSessionOrder = catchAsync(async (req, res) => {
+  const { Authority, Status } = req.query;
+  const { order_id } = req.params;
+
+  if (Status !== 'OK') {
+    return res.redirect(`${config.CLIENT_URL}/course-session/payment-result?order_id=${order_id}&payment_status=false`);
+  }
+
+  // Validate course ID
+  if (!mongoose.Types.ObjectId.isValid(order_id)) {
+    // return res.redirect(`${config.CLIENT_URL}/checkout?order_id=${order_id}&payment_status=false`);
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID');
+  }
+
+  const validatedOrder = await courseSesshionService.validateCheckoutCourseSessionOrder({
+    orderId: order_id,
+    Authority,
+    Status,
+  });
+
+  if (!validatedOrder) {
+    return res.redirect(`${config.CLIENT_URL}/course-session/payment-result?order_id=${order_id}&payment_status=false`);
+  }
+
+  // return res.redirect(
+  //   `${config.CLIENT_URL}/checkout?order_id=${order_id}&payment_status=${validatedOrder?.order?.paymentStatus}`
+  // );
+  res.status(httpStatus.OK).send(validatedOrder);
+});
+
 module.exports = {
   // admin
   getAllCoursesSessionForAdmin,
@@ -358,4 +392,5 @@ module.exports = {
   // checkout order
   createCourseSessionOrder,
   calculateOrderSummary,
+  validateCheckoutCourseSessionOrder,
 };

@@ -383,6 +383,22 @@ const getCourseSessionOrderById = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(order);
 });
 
+const retryCourseSessionOrder = catchAsync(async (req, res) => {
+  const { order_id } = req.params;
+
+  if (!req.user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
+  }
+
+  // Validate course ID
+  if (!mongoose.Types.ObjectId.isValid(order_id)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID');
+  }
+
+  const order = await courseSesshionService.retryCourseSessionOrder({ orderId: order_id, user: req.user });
+  res.status(httpStatus.OK).send(order);
+});
+
 module.exports = {
   // admin
   getAllCoursesSessionForAdmin,
@@ -409,4 +425,5 @@ module.exports = {
   calculateOrderSummary,
   validateCheckoutCourseSessionOrder,
   getCourseSessionOrderById,
+  retryCourseSessionOrder,
 };

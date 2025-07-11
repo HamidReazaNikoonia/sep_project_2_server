@@ -47,6 +47,7 @@ router.get('/program/:program_id', courseController.getSpecificProgram);
 router.post('/calculate-order-summary', auth(), courseController.calculateOrderSummary);
 router.post('/order', auth(), courseController.createCourseSessionOrder);
 router.get('/order/:order_id', auth(), courseController.getCourseSessionOrderById);
+router.post('/order/:order_id/retry', auth(), courseController.retryCourseSessionOrder);
 router.get('/order/:order_id/validate-checkout', courseController.validateCheckoutCourseSessionOrder);
 
 router.get('/:slug', courseController.getCourseBySlugOrId);

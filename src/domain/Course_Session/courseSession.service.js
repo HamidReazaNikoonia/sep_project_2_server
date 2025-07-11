@@ -1169,6 +1169,68 @@ const getCourseSessionOrderById = async ({ orderId, user }) => {
   return order;
 };
 
+const retryCourseSessionOrder = async ({ orderId, user }) => {
+  const order = await CourseSessionOrderModel.findById(orderId);
+
+  if (!order) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+
+  if (order.userId.toString() !== user.id) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'You are not authorized to access this order');
+  }
+
+  if (order.paymentStatus === 'paid') {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Order is already paid');
+  }
+
+  if (order.paymentStatus === 'refunded') {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Order is already refunded');
+  }
+
+  if (order.paymentStatus === 'cancelled') {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Order is already cancelled');
+  }
+
+  // Payment Checkout ZARINPAL Process
+
+  const zarinpal = ZarinpalCheckout.create('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', true);
+  const payment = await zarinpal.PaymentRequest({
+    Amount: order.final_order_price,
+    CallbackURL: `${config.SERVER_API_URL}/course-session/order/${order._id}/validate-checkout`,
+    Description: '---------',
+    Mobile: user.mobile,
+    order_id: order._id,
+  });
+
+  // validate Payment
+
+  if (!payment || payment.code !== 100) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `Payment Error with status => ${payment.code || null}`);
+  }
+
+  // TODO:: Implement Transaction
+  // Create New Transaction
+  const transaction = new Transaction({
+    userId: user.id,
+    order_id: order._id,
+    amount: order.final_order_price,
+    factorNumber: payment.authority,
+    tax: order.tax,
+  });
+
+  const savedTransaction = await transaction.save();
+
+  if (!savedTransaction) {
+    throw new ApiError(httpStatus[500], 'Transaction Could Not Save In DB');
+  }
+
+  order.transactionId = savedTransaction._id;
+  await order.save();
+
+  return { order, transaction, payment };
+};
+
 module.exports = {
   checkCoachAvailability,
   // ADMIN
@@ -1198,4 +1260,5 @@ module.exports = {
   calculateOrderSummary,
   validateCheckoutCourseSessionOrder,
   getCourseSessionOrderById,
+  retryCourseSessionOrder,
 };

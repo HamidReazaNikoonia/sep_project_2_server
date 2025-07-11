@@ -83,7 +83,9 @@ const courseSessionOrderSchema = new mongoose.Schema(
       required: true,
     },
     transactionId: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Transaction',
+      required: false,
     },
     reference: {
       type: String,

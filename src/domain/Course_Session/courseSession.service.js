@@ -1144,10 +1144,29 @@ const validateCheckoutCourseSessionOrder = async ({ orderId, user, Authority: au
     await transaction.save();
 
     order.paymentStatus = 'paid';
+    order.transactionId = transaction._id;
     await order.save();
   }
 
   return { order, transaction, payment };
+};
+
+const getCourseSessionOrderById = async ({ orderId, user }) => {
+  if (!orderId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Order ID is required');
+  }
+
+  const order = await CourseSessionOrderModel.findById(orderId).populate('transactionId');
+
+  if (!order) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+
+  if (order.userId.toString() !== user.id) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'You are not authorized to access this order');
+  }
+
+  return order;
 };
 
 module.exports = {
@@ -1178,4 +1197,5 @@ module.exports = {
   createCourseSessionOrder,
   calculateOrderSummary,
   validateCheckoutCourseSessionOrder,
+  getCourseSessionOrderById,
 };

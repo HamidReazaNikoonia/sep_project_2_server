@@ -362,10 +362,25 @@ const validateCheckoutCourseSessionOrder = catchAsync(async (req, res) => {
     return res.redirect(`${config.CLIENT_URL}/course-session/payment-result?order_id=${order_id}&payment_status=false`);
   }
 
-  // return res.redirect(
-  //   `${config.CLIENT_URL}/checkout?order_id=${order_id}&payment_status=${validatedOrder?.order?.paymentStatus}`
-  // );
-  res.status(httpStatus.OK).send(validatedOrder);
+  return res.redirect(
+    `${config.CLIENT_URL}/course-session/payment-result?order_id=${order_id}&payment_status=${validatedOrder?.order?.paymentStatus}`
+  );
+  // res.status(httpStatus.OK).send(validatedOrder);
+});
+
+const getCourseSessionOrderById = catchAsync(async (req, res) => {
+  const { order_id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(order_id)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid course ID');
+  }
+
+  if (!req.user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
+  }
+
+  const order = await courseSesshionService.getCourseSessionOrderById({ orderId: order_id, user: req.user });
+  res.status(httpStatus.OK).send(order);
 });
 
 module.exports = {
@@ -393,4 +408,5 @@ module.exports = {
   createCourseSessionOrder,
   calculateOrderSummary,
   validateCheckoutCourseSessionOrder,
+  getCourseSessionOrderById,
 };

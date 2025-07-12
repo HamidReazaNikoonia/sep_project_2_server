@@ -68,16 +68,19 @@ const classProgramSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Course_Session',
       required: true,
+      autopopulate: true,
     },
     coach: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Coach',
       required: true,
+      autopopulate: true,
     },
     class_id: {
-      type: String,
-      required: true,
-      // unique: true,
+      type: mongoose.Schema.Types.ObjectId,
+      required: false,
+      ref: 'ClassNo',
+      autopopulate: true,
     },
     subjects: [
       {

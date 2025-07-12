@@ -127,6 +127,12 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    course_session_enrollments: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'CourseSession',
+      },
+    ],
     national_card_images: [
       {
         type: Schema.Types.ObjectId,

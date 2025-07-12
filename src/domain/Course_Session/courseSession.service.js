@@ -54,7 +54,7 @@ const ApiError = require('../../utils/ApiError');
 // Assuming validCoupons is an array of objects with couponId
 const applyCoupons = async (validCoupons) => {
   const results = await Promise.all(
-    validCoupons.map(async ({ couponId }) => {
+    validCoupons.map(async (couponId) => {
       const coupon = await CouponCode.findById(couponId);
       if (!coupon) {
         throw new ApiError(httpStatus.NOT_FOUND, `Coupon with id ${couponId} not found`);
@@ -67,7 +67,7 @@ const applyCoupons = async (validCoupons) => {
 
       return {
         couponId: coupon._id,
-        discountAmount: validCoupons.find((vc) => vc.couponId.equals(coupon._id)).discountAmount,
+        // discountAmount: validCoupons.find((vc) => vc.couponId.equals(coupon._id)).discountAmount,
       };
     })
   );
@@ -1146,6 +1146,45 @@ const validateCheckoutCourseSessionOrder = async ({ orderId, user, Authority: au
     order.paymentStatus = 'paid';
     order.transactionId = transaction._id;
     await order.save();
+
+    // Payment is Successfull
+    // 1- Add member on the classProgram.member
+    // 2- apply coupon (decrement coupon usage)
+    // 3- update user model and push course session to `course_session_enrollments`
+
+    // Add member to classProgram.members
+    const classProgram = await classProgramModel.findById(order.classProgramId);
+    if (!classProgram) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Class program not found');
+    }
+
+    // Add user as member if not already added
+
+    classProgram.members.push({
+      user: order.userId,
+      enrolledAt: new Date(),
+    });
+    await classProgram.save();
+
+    // 3- update user model and push course session to `course_session_enrollments`
+
+    const userModel = await User.findById(order.userId);
+    if (!userModel) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    }
+    userModel.course_session_enrollments.push(order.classProgramId);
+    await userModel.save();
+
+    // 4- apply coupon (decrement coupon usage)
+    if (order?.appliedCoupons && order?.appliedCoupons?.length > 0) {
+      const validCouponsIds = order.appliedCoupons.map((coupon) => coupon.couponId.toString());
+      // console.log('validCouponsIds', validCouponsIds);
+      // console.log('order.appliedCoupons', order.appliedCoupons);
+
+      const appliedCoupons = await applyCoupons(validCouponsIds);
+      // eslint-disable-next-line no-console
+      console.log('appliedCoupons', appliedCoupons);
+    }
   }
 
   return { order, transaction, payment };

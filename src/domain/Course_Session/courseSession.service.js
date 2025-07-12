@@ -1168,12 +1168,12 @@ const validateCheckoutCourseSessionOrder = async ({ orderId, user, Authority: au
 
     // 3- update user model and push course session to `course_session_enrollments`
 
-    const userModel = await User.findById(order.userId);
-    if (!userModel) {
+    const userProfileModel = await Profile.findOne({ user: order.userId });
+    if (!userProfileModel) {
       throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
     }
-    userModel.course_session_enrollments.push(order.classProgramId);
-    await userModel.save();
+    userProfileModel.course_session_program_enrollments.push(order.classProgramId);
+    await userProfileModel.save();
 
     // 4- apply coupon (decrement coupon usage)
     if (order?.appliedCoupons && order?.appliedCoupons?.length > 0) {

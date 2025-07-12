@@ -24,6 +24,14 @@ const profileSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Course',
+        autopopulate: true,
+      },
+    ],
+    course_session_program_enrollments: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ClassProgram',
+        autopopulate: true,
       },
     ],
   },

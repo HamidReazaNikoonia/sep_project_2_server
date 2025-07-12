@@ -12,6 +12,8 @@ const {Product: ProductModel} = require('./../Product/product.model');
 function calcTotalPrice(cart) {
   let totalPrice = 0;
   cart.cartItem.forEach((element) => {
+    // console.log('element');
+    // console.log(element);
     totalPrice += element.quantity * element.price;
   });
 
@@ -28,13 +30,15 @@ const addCourseToCart = async ({ course, userId }) => {
     userId: userId,
   });
 
+  const coursePrice = course.price_discount || course.price_real;
+
   // If user have not Cart in the DB
   // we will create new Cart for the User
   if (!isCartExist) {
     let newCart = new cartModel({
       userId,
-      cartItem: [{ courseId: course._id, quantity: 1, price: course.price }],
-      totalPrice: course.price,
+      cartItem: [{ courseId: course._id, quantity: 1, price: coursePrice }],
+      totalPrice: coursePrice,
     });
     await newCart.save();
 
@@ -47,21 +51,17 @@ const addCourseToCart = async ({ course, userId }) => {
 
   // check, if new item exist in Cart or not
   let item = isCartExist.cartItem.find((element) => {
-    return element?.courseId == course._id?.toString();
+    return element?.courseId?._id.toString() == course._id?.toString();
   });
-
-  console.log('kir');
-  console.log(item);
-
 
 
   if (item) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'This course exist in the cart already');
+    throw new ApiError(httpStatus.ALREADY_REPORTED, 'This course exist in the cart already');
   }
 
   // this course not exist in the Cart
 
-    isCartExist.cartItem.push({ courseId: course._id, quantity: 1, price: course.price });
+    isCartExist.cartItem.push({ courseId: course._id, quantity: 1, price: coursePrice });
 
     calcTotalPrice(isCartExist);
 

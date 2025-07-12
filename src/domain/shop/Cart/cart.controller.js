@@ -17,12 +17,12 @@ const addProductToCart = catchAsync(async (req, res) => {
     const result = await cartService.addProductToCart({ product, quantity, userId: req.user.id });
     res.status(httpStatus.OK).send(result);
   } else if (courseId) {
-    const course = await courseService.getCourseBySlugOrId({_id: courseId});
-    const result = await cartService.addCourseToCart({course, userId: req.user.id});
+    const course = await courseService.getCourseBySlugOrId({ _id: courseId });
+    const result = await cartService.addCourseToCart({ course, userId: req.user.id });
     res.status(httpStatus.OK).send(result);
+  } else {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Request');
   }
-
-
 
 
 });
@@ -32,10 +32,10 @@ const getLoggedUserCart = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'User Not Exist');
   }
 
-  let cartItems = await cartService.getLoggedUserCart({ userId: req.user.id });
+  const cartItems = await cartService.getLoggedUserCart({ userId: req.user.id });
 
   if (!cartItems) {
-    res.status(httpStatus.OK).send([]);
+    throw new ApiError(httpStatus.NOT_FOUND, ' --- Cart Not Found --- ');
   }
 
   res.status(httpStatus.OK).send(cartItems);

@@ -140,6 +140,22 @@ const userSchema = mongoose.Schema(
         autopopulate: true,
       },
     ],
+    wallet: {
+      amount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+    },
+    referral_code: {
+      type: String,
+      required: false,
+      unique: true,
+    },
+    referred_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
   },
   {
     timestamps: true,

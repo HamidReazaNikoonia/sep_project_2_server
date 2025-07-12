@@ -1,4 +1,6 @@
 const httpStatus = require('http-status');
+const randomstring = require('randomstring');
+const { CouponJS } = require('couponjs');
 const tokenService = require('./token.service');
 const userService = require('./user.service');
 const Token = require('../models/token.model');
@@ -10,12 +12,25 @@ const getUserForOTP = async ({ mobile, role }) => {
 
   // if user not exist
   if (!userDoc) {
+    const coupon = new CouponJS();
+    const myCoupon = coupon.generate({
+      length: 4,
+      prefix: 'REF-',
+    });
+
+    const randomstr = randomstring.generate({
+      charset: 'numeric',
+      length: 5,
+    });
+
     const userData = {
+      referral_code: `${myCoupon}-${randomstr}`,
       mobile,
       ...(role !== 'admin' && { role: role || 'user' }),
     };
     const createdUser = await userService.createUserByOTP(userData);
-    console.log('first')
+    // eslint-disable-next-line no-console
+    console.log('first');
     return { createdUser, firstLogin: true };
   }
 

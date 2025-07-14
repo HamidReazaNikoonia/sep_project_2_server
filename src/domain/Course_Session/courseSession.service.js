@@ -897,7 +897,7 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
  * @param {Array<string>} couponCodes
  * @returns {Promise<Object>}
  */
-const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], packages = [] }) => {
+const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], packages = [], useUserWallet = false }) => {
   // Get course session
   const courseSessionclassProgram = await classProgramModel.findById(classProgramId).populate('coach').populate('course');
   if (!courseSessionclassProgram) {
@@ -940,10 +940,12 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
       const coupon = await CouponCode.findOne({
         code: code.toUpperCase(),
         is_active: true,
-        valid_from: { $lte: new Date() },
-        valid_until: { $gte: new Date() },
+        // valid_from: { $lte: new Date() },
+        // valid_until: { $gte: new Date() },
         $expr: { $lt: ['$current_uses', '$max_uses'] },
       });
+
+      console.log('coupon--', coupon);
 
       // console.log('coupon', coupon);
 
@@ -981,14 +983,15 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
         }
       }
 
+      console.log(user);
       // For referral type coupons, check if it's created by the same user
-      if (coupon.type === 'REFERRAL' && coupon.created_by.equals(user)) {
-        invalidCoupons.push({
-          code,
-          reason: 'Cannot use your own referral code',
-        });
-        continue;
-      }
+      // if (coupon.type === 'REFERRAL' && coupon.created_by.toString() === user._id.toString()) {
+      //   invalidCoupons.push({
+      //     code,
+      //     reason: 'Cannot use your own referral code',
+      //   });
+      //   continue;
+      // }
 
       // Calculate discount
       let discountAmount;
@@ -1022,7 +1025,11 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
 
   // Calculate Total Price
   const TAX_CONSTANT = 10000;
-  const finalAmount = calculatePrice + TAX_CONSTANT + totalPackagePrice;
+  let finalAmount = calculatePrice + TAX_CONSTANT + totalPackagePrice;
+
+  if (useUserWallet) {
+    finalAmount -= user.wallet.amount;
+  }
 
   return {
     program: {

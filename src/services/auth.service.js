@@ -4,6 +4,7 @@ const { CouponJS } = require('couponjs');
 const tokenService = require('./token.service');
 const userService = require('./user.service');
 const Token = require('../models/token.model');
+const CouponCode = require('../domain/CouponCodes/couponCodes.model');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
 
@@ -15,16 +16,33 @@ const getUserForOTP = async ({ mobile, role }) => {
     const coupon = new CouponJS();
     const myCoupon = coupon.generate({
       length: 4,
-      prefix: 'REF-',
+      prefix: 'AVANO-',
     });
 
     const randomstr = randomstring.generate({
       charset: 'numeric',
-      length: 5,
+      length: 4,
     });
 
+    // create referal code
+    const newRefCode = await CouponCode.create({
+      code: `${myCoupon}${randomstr}`,
+      type: 'REFERRAL',
+      discount_type: 'PERCENTAGE',
+      discount_value: 20,
+      max_uses: 50,
+      valid_until: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+      // created_by: userDoc?.id,
+    });
+
+    console.log('newRefCode', userDoc);
+
+    if (!newRefCode) {
+      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create referral code');
+    }
+
     const userData = {
-      referral_code: `${myCoupon}-${randomstr}`,
+      referral_code: `${myCoupon}${randomstr}`,
       mobile,
       ...(role !== 'admin' && { role: role || 'user' }),
     };

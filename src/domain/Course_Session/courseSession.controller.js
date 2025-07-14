@@ -296,7 +296,7 @@ const getSpecificProgram = catchAsync(async (req, res) => {
  */
 
 const calculateOrderSummary = catchAsync(async (req, res) => {
-  const { classProgramId, couponCodes, packages } = req.body;
+  const { classProgramId, couponCodes, packages, useUserWallet } = req.body;
 
   if (!req.user) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
@@ -313,6 +313,7 @@ const calculateOrderSummary = catchAsync(async (req, res) => {
     classProgramId,
     couponCodes,
     packages,
+    useUserWallet,
   });
 
   if (!summary) {

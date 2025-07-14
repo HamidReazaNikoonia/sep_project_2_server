@@ -341,7 +341,7 @@ const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
 
   // Calculate Total Price
   const tprice = calculateTotalPrice(validCourseAndProduct);
-  const TAX_CONSTANT = 10000;
+  const TAX_CONSTANT = tprice * 0.08; // Assuming 8% tax rate;
 
   // return validCourseAndProduct;
 

@@ -22,6 +22,11 @@ const getUsers = {
     limit: Joi.number().integer(),
     page: Joi.number().integer(),
     q: Joi.string(),
+    isVerified: Joi.string(),
+    have_enrolled_course_session: Joi.string(),
+    have_wallet_amount: Joi.string(),
+    created_from_date: Joi.string(),
+    created_to_date: Joi.string(),
   }),
 };
 

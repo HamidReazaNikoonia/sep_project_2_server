@@ -61,6 +61,9 @@ const userSchema = mongoose.Schema(
     city: {
       type: String,
     },
+    state: {
+      type: String,
+    },
     country: {
       type: String,
       default: 'IRAN',
@@ -114,7 +117,7 @@ const userSchema = mongoose.Schema(
       ref: 'Upload',
       autopopulate: true,
     },
-    isEmailVerified: {
+    isVerified: {
       type: Boolean,
       default: false,
     },

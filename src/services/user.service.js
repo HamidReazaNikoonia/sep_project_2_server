@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 const httpStatus = require('http-status');
 const { User } = require('../models');
 const Coach = require('../domain/Coach/coach.model');
@@ -34,14 +35,37 @@ const createUser = async (userBody) => {
  * @returns {Promise<QueryResult>}
  */
 const queryUsers = async (filter, options) => {
-  // Extract 'q' from filter and remove it from the original filter object
-  const { q, ...otherFilters } = filter;
+  // Extract 'q' and have_enrolled_course_session from filter and remove them from the original filter object
+  const { q, have_enrolled_course_session, have_wallet_amount, created_from_date, created_to_date, ...otherFilters } = filter;
 
   // If there's a search query, create a search condition
   if (q) {
     // eslint-disable-next-line security/detect-non-literal-regexp
     const searchRegex = new RegExp(q, 'i'); // Case-insensitive search
     otherFilters.$or = [{ first_name: searchRegex }, { last_name: searchRegex }, { mobile: searchRegex }];
+  }
+
+  // Add condition for enrolled course sessions if filter is true
+  if (have_enrolled_course_session === 'true') {
+    otherFilters['course_session_program_enrollments.0'] = { $exists: true };
+  }
+
+  // Add condition for users with wallet amount if filter is true
+  if (have_wallet_amount === 'true') {
+    otherFilters['wallet.amount'] = { $gt: 0 };
+  }
+
+  // Add date range filtering if dates are provided
+  if (created_from_date || created_to_date) {
+    otherFilters.createdAt = {};
+
+    if (created_from_date) {
+      otherFilters.createdAt.$gte = new Date(created_from_date);
+    }
+
+    if (created_to_date) {
+      otherFilters.createdAt.$lte = new Date(created_to_date);
+    }
   }
 
   const users = await User.paginate(otherFilters, options);

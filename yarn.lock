@@ -3806,10 +3806,10 @@ ipaddr.js@1.9.1:
   resolved "https://registry.yarnpkg.com/ipaddr.js/-/ipaddr.js-1.9.1.tgz#bff38543eeb8984825079ff3a2a8e6cbd46781b3"
   integrity sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==
 
-iran-info@^0.6.1:
-  version "0.6.1"
-  resolved "https://registry.yarnpkg.com/iran-info/-/iran-info-0.6.1.tgz#07e3184f402a9b162cac13924463f13df95136f8"
-  integrity sha512-KgV1zPGvm1RcSHai608kloxnPnb21+hA1ybFU7HQqHucCWuojg2pCHm4GznYi5V6nWZLu4YPEa/wb210HAJceg==
+iran-city@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/iran-city/-/iran-city-1.2.2.tgz#401409b8ebefb58a0e416622f8d3edc94452c37f"
+  integrity sha512-g2mUTj2ZyM+sVXNdA7NwFXVSDSmLCfvs/ZpWsJPz9RJDFkrsTMN7Olv4ObbyKSJTVfLWcgzrARZmfpSFrqIHfw==
 
 is-accessor-descriptor@^1.0.1:
   version "1.0.1"

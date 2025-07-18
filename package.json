@@ -62,7 +62,7 @@
     "googleapis": "^144.0.0",
     "helmet": "^4.1.0",
     "http-status": "^1.4.0",
-    "iran-info": "^0.6.1",
+    "iran-city": "^1.2.2",
     "joi": "^17.3.0",
     "jsonwebtoken": "^8.5.1",
     "kavenegar": "^1.1.4",

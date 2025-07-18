@@ -36,6 +36,9 @@ const searchRoute = require('../../domain/Search/search.route');
 // Coupon Code
 const couponCodeRoute = require('../../domain/CouponCodes/couponCodes.route');
 
+// Site Info
+const siteInfoRoutes = require('../../domain/SiteInfo/siteInfo.route');
+
 const router = express.Router();
 
 const defaultRoutes = [
@@ -118,6 +121,10 @@ const defaultRoutes = [
   {
     path: '/admin/setting/set',
     route: adminSettingRoutes,
+  },
+  {
+    path: '/site-info',
+    route: siteInfoRoutes,
   },
 ];
 

@@ -53,20 +53,39 @@ const userSchema = mongoose.Schema(
         }
       },
     },
+    birth_date: {
+      type: Date,
+      required: false,
+    },
+    personal_img: {
+      type: Schema.Types.ObjectId,
+      ref: 'Upload',
+      autopopulate: true,
+    },
     gender: {
       type: String,
       require: false,
       enum: ['M', 'W'],
     },
     city: {
-      type: String,
+      type: Number,
     },
-    state: {
-      type: String,
+    province: {
+      type: Number,
     },
     country: {
       type: String,
       default: 'IRAN',
+    },
+    address: {
+      type: String,
+      required: false,
+    },
+    job_title: String,
+    mariage_status: {
+      type: String,
+      enum: ['single', 'married', 'widowed', 'divorced'],
+      default: 'single',
     },
     mobile: {
       type: String,
@@ -75,6 +94,15 @@ const userSchema = mongoose.Schema(
       validate(value) {
         if (!getMobiles(value)[0]) {
           throw new Error('Invalid Mobile');
+        }
+      },
+    },
+    tel: {
+      type: String,
+      required: false,
+      validate(value) {
+        if (!/^\d+$/.test(value)) {
+          throw new Error('Telephone number must contain only digits');
         }
       },
     },

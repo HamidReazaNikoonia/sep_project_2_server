@@ -160,8 +160,17 @@ const userSchema = mongoose.Schema(
     },
     course_session_program_enrollments: [
       {
-        type: Schema.Types.ObjectId,
-        ref: 'ClassProgram',
+        program: {
+          type: Schema.Types.ObjectId,
+          ref: 'ClassProgram',
+        },
+        startedAt: {
+          type: Date,
+          required: false,
+        },
+        endedAt: {
+          type: Date,
+        },
       },
     ],
     national_card_images: [

@@ -21,6 +21,8 @@ router
   .get(courseController.getAllCourseSessionPackage)
   .post(courseController.createCourseSessionPackage);
 
+router.route('/admin/program/:userId').get(courseController.getAllProgramsOfSpecificUser);
+
 // router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE
 
 // // Route Category

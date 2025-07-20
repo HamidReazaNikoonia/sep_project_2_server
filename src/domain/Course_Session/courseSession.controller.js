@@ -400,6 +400,13 @@ const retryCourseSessionOrder = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(order);
 });
 
+const getAllProgramsOfSpecificUser = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  console.log({ userId });
+  const programs = await courseSesshionService.getAllProgramsOfSpecificUser(userId);
+  res.status(httpStatus.OK).send(programs);
+});
+
 module.exports = {
   // admin
   getAllCoursesSessionForAdmin,
@@ -427,4 +434,6 @@ module.exports = {
   validateCheckoutCourseSessionOrder,
   getCourseSessionOrderById,
   retryCourseSessionOrder,
+  // Program
+  getAllProgramsOfSpecificUser,
 };

@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 const httpStatus = require('http-status');
 const { v4: uuidv4 } = require('uuid');
 const ApiError = require('../../utils/ApiError');
@@ -8,15 +9,39 @@ const Coach = require('./coach.model');
 const CouchCourseProgram = require('../Admin/coach/coachCourseProgram/coach_course_program.model');
 const Transaction = require('../Transaction/transaction.model');
 
- // Service
+// Service
 const ZarinpalCheckout = require('../../services/payment');
 const CourseEnrollmentService = require('./courseEnrollment.service');
 
 const config = require('../../config/config');
 
 // Get all coaches
-const getAllCoaches = async () => {
-  return Coach.find().populate('user_id', 'name email'); // Populate user details
+const getAllCoaches = async (filter, options) => {
+  // return Coach.find().populate('user_id', 'name email'); // Populate user details
+
+  const { q, created_from_date, created_to_date, ...otherFilters } = filter;
+
+  if (q) {
+    // eslint-disable-next-line security/detect-non-literal-regexp
+    const searchRegex = new RegExp(q, 'i'); // Case-insensitive search
+    otherFilters.$or = [{ first_name: searchRegex }, { last_name: searchRegex }, { mobile: searchRegex }];
+  }
+
+  // Add date range filtering if dates are provided
+  if (created_from_date || created_to_date) {
+    otherFilters.createdAt = {};
+
+    if (created_from_date) {
+      otherFilters.createdAt.$gte = new Date(created_from_date);
+    }
+
+    if (created_to_date) {
+      otherFilters.createdAt.$lte = new Date(created_to_date);
+    }
+  }
+  const coaches = await Coach.paginate(otherFilters, options);
+
+  return coaches;
 };
 
 // Get a specific coach by ID
@@ -46,7 +71,7 @@ const getCoachCourseProgramPublic = async ({ user }) => {
 
   const coachCoursePrograms = await await CouchCourseProgram.aggregate([
     {
-      $match: { isPublished: true }
+      $match: { isPublished: true },
     },
     {
       $project: {
@@ -61,18 +86,17 @@ const getCoachCourseProgramPublic = async ({ user }) => {
         updatedAt: 1,
         course_object_titles: {
           $map: {
-            input: "$course_object",
-            as: "course",
-            in: "$$course.title"
-          }
-        }
-      }
-    }
+            input: '$course_object',
+            as: 'course',
+            in: '$$course.title',
+          },
+        },
+      },
+    },
   ]);
 
   return coachCoursePrograms;
 };
-
 
 /**
  * @desc    Checkout coach course program
@@ -97,7 +121,7 @@ const checkoutCoachCourseProgram = async ({ userId, coachCourseProgramId }) => {
 
   // 3. Check if user already enrolled
   const alreadyEnrolled = user.enrolledCourses.some(
-    course => course.coach_course_program_id.toString() === coachCourseProgramId
+    (course) => course.coach_course_program_id.toString() === coachCourseProgramId
   );
 
   if (alreadyEnrolled) {
@@ -105,42 +129,42 @@ const checkoutCoachCourseProgram = async ({ userId, coachCourseProgramId }) => {
   }
 
   // checkout
-   // *** payment ***
-    // Send Payment Request to Get TOKEN
-    const TAX_CONSTANT = 10000;
-    const factorNumber = uuidv4();
-    console.log(config.CLIENT_URL);
-    // console.log({ tprice: newOrder.totalAmount });
-    console.log('hooo');
-    const zarinpal = ZarinpalCheckout.create('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', true);
-    const payment = await zarinpal.PaymentRequest({
-      Amount: program.amount,
-      CallbackURL: `${config.SERVER_API_URL}/coach/coach-course-program/validate-checkout/${program._id}`,
-      Description: '---------',
-      Mobile: user.mobile,
-    });
+  // *** payment ***
+  // Send Payment Request to Get TOKEN
+  const TAX_CONSTANT = 10000;
+  const factorNumber = uuidv4();
+  console.log(config.CLIENT_URL);
+  // console.log({ tprice: newOrder.totalAmount });
+  console.log('hooo');
+  const zarinpal = ZarinpalCheckout.create('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', true);
+  const payment = await zarinpal.PaymentRequest({
+    Amount: program.amount,
+    CallbackURL: `${config.SERVER_API_URL}/coach/coach-course-program/validate-checkout/${program._id}`,
+    Description: '---------',
+    Mobile: user.mobile,
+  });
 
-    // Validate Payment Request
+  // Validate Payment Request
 
-    if (!payment || payment.code !== 100) {
-      throw new ApiError(httpStatus.BAD_REQUEST, `Payment Error with status => ${payment.code || null}`);
-    }
+  if (!payment || payment.code !== 100) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `Payment Error with status => ${payment.code || null}`);
+  }
 
-    // Create New Transaction
-    const transaction = new Transaction({
-      // coachUserId: 'NOT_SELECTED',
-      courseProgram: program._id,
-      customer: user.id,
-      amount: program.amount,
-      factorNumber: payment.authority,
-      tax: TAX_CONSTANT,
-    });
+  // Create New Transaction
+  const transaction = new Transaction({
+    // coachUserId: 'NOT_SELECTED',
+    courseProgram: program._id,
+    customer: user.id,
+    amount: program.amount,
+    factorNumber: payment.authority,
+    tax: TAX_CONSTANT,
+  });
 
-    const savedTransaction = await transaction.save();
+  const savedTransaction = await transaction.save();
 
-    if (!savedTransaction) {
-      throw new ApiError(httpStatus[500], 'Transaction Could Not Save In DB');
-    }
+  if (!savedTransaction) {
+    throw new ApiError(httpStatus[500], 'Transaction Could Not Save In DB');
+  }
   //--
 
   // 4. Return checkout information
@@ -149,27 +173,21 @@ const checkoutCoachCourseProgram = async ({ userId, coachCourseProgramId }) => {
     // user,
     status: 'success',
     payment,
-    savedTransaction
+    savedTransaction,
   };
 };
 
-
-
-const checkoutVerification = async ({ authority, status, coachCourseProgramId, user}) => {
+const checkoutVerification = async ({ authority, status, coachCourseProgramId, user }) => {
   // get Transaction
   const transaction = await Transaction.findOne({ factorNumber: authority });
 
-        console.log('transaction @checkoutVerification');
-        console.log(transaction);
-        console.log(status);
+  console.log('transaction @checkoutVerification');
+  console.log(transaction);
+  console.log(status);
 
-
-    if (!transaction) {
-       throw new ApiError(httpStatus.BAD_REQUEST, 'Transaction Has Error From DB');
-    }
-
-
-
+  if (!transaction) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Transaction Has Error From DB');
+  }
 
   // Verify Payment with Payment gateway (zarinpal)
   // Verify Payment
@@ -178,7 +196,6 @@ const checkoutVerification = async ({ authority, status, coachCourseProgramId, u
     amount: transaction.amount,
     authority: authority,
   });
-
 
   // if (payment?.data?.code !== 100) {
   //   await createNotificationService(referenceDoc.customer, "payment_fail_create_reference", {
@@ -232,10 +249,6 @@ const checkoutVerification = async ({ authority, status, coachCourseProgramId, u
 
   // Transaction Pay Successfully
   if (payment.data.code === 100 && payment.data.message === 'Paid') {
-
-
-
-
     // Update Transaction
     transaction.status = true;
     transaction.payment_reference_id = payment.data.ref_id;
@@ -245,28 +258,24 @@ const checkoutVerification = async ({ authority, status, coachCourseProgramId, u
     // enroll course for the user
     const userId = transaction.customer;
 
-    console.log(`id from url params => ${coachCourseProgramId}`)
-    console.log(`id from  Transactiom Model => ${transaction.courseProgram}`)
-    console.log(`customer id from Transactiom Model => ${userId}`)
+    console.log(`id from url params => ${coachCourseProgramId}`);
+    console.log(`id from  Transactiom Model => ${transaction.courseProgram}`);
+    console.log(`customer id from Transactiom Model => ${userId}`);
 
-    const dd =  await CourseEnrollmentService.enrollCoach(userId, coachCourseProgramId);
-
-
+    const dd = await CourseEnrollmentService.enrollCoach(userId, coachCourseProgramId);
 
     return {
       status: true,
       transaction,
-      dd
+      dd,
     };
-
-
   }
 
   return {
-      status: false,
-      transaction
-    };
-}
+    status: false,
+    transaction,
+  };
+};
 
 // create new coach
 const createCoach = async (requestBody) => {

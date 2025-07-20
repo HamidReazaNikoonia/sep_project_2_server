@@ -1277,6 +1277,49 @@ const retryCourseSessionOrder = async ({ orderId, user }) => {
   return { order, transaction, payment };
 };
 
+// Program
+const getAllProgramsOfSpecificUser = async (userId) => {
+  if (!userId) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  const userWithEnrollments = await User.findById(userId)
+    .select('course_session_program_enrollments')
+    .populate({
+      path: 'course_session_program_enrollments.program',
+      select: 'course coach class_id program_type status',
+      populate: [
+        {
+          path: 'course',
+          select: 'title _id',
+        },
+        {
+          path: 'coach',
+          select: 'first_name last_name _id',
+          options: {
+            autopopulate: false, // Disable for this query
+            select: 'first_name last_name _id',
+          },
+          // transform: (doc) => ({
+          //   _id: doc._id,
+          //   first_name: doc.first_name,
+          //   last_name: doc.last_name,
+          // }),
+        },
+      ],
+    });
+
+  if (!userWithEnrollments) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  // const programs = await classProgramModel.find({ coach: userId });
+
+  // const userEnrollments = user.course_session_program_enrollments;
+
+  return userWithEnrollments;
+};
+
 module.exports = {
   checkCoachAvailability,
   // ADMIN
@@ -1307,4 +1350,6 @@ module.exports = {
   validateCheckoutCourseSessionOrder,
   getCourseSessionOrderById,
   retryCourseSessionOrder,
+  // Program
+  getAllProgramsOfSpecificUser,
 };

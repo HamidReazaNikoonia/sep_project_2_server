@@ -15,6 +15,7 @@ const getAllCoaches = catchAsync(async (req, res) => {
     'mobile',
     'coach_is_valid',
     'have_active_program',
+    'program_status',
     'q',
     'created_from_date',
     'created_to_date',

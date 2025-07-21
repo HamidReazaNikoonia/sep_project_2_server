@@ -20,7 +20,8 @@ const config = require('../../config/config');
 const getAllCoaches = async (filter, options) => {
   // return Coach.find().populate('user_id', 'name email'); // Populate user details
 
-  const { q, created_from_date, created_to_date, coach_is_valid, have_active_program, ...otherFilters } = filter;
+  const { q, created_from_date, created_to_date, coach_is_valid, have_active_program, program_status, ...otherFilters } =
+    filter;
 
   if (q) {
     // eslint-disable-next-line security/detect-non-literal-regexp
@@ -48,6 +49,41 @@ const getAllCoaches = async (filter, options) => {
       $exists: true,
       $ne: [], // Ensure they have at least one program
     };
+  }
+
+  if (program_status) {
+    if (program_status === 'inactive') {
+      // First find all ClassPrograms with active status
+      const inactivePrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
+
+      // Then filter coaches who have at least one of these active programs
+      otherFilters.courseSessionsProgram = {
+        $in: inactivePrograms,
+        $exists: true,
+        $ne: [], // Ensure they have at least one program
+      };
+    } else if (program_status === 'active') {
+      // First find all ClassPrograms with active status
+      const activePrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
+
+      // Then filter coaches who have at least one of these active programs
+      otherFilters.courseSessionsProgram = {
+        $in: activePrograms,
+        $exists: true,
+        $ne: [], // Ensure they have at least one program
+      };
+    } else if (program_status === 'completed') {
+      console.log('completed');
+      // First find all ClassPrograms with active status
+      const completedPrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
+
+      // Then filter coaches who have at least one of these active programs
+      otherFilters.courseSessionsProgram = {
+        $in: completedPrograms,
+        $exists: true,
+        $ne: [], // Ensure they have at least one program
+      };
+    }
   }
 
   // Add date range filtering if dates are provided

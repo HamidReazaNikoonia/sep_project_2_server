@@ -168,6 +168,18 @@ const userSchema = mongoose.Schema(
           type: Date,
           required: false,
         },
+        is_active: {
+          type: Boolean,
+          default: true,
+        },
+        is_valid: {
+          type: Boolean,
+          default: false,
+        },
+        is_completed: {
+          type: Boolean,
+          default: false,
+        },
         endedAt: {
           type: Date,
         },

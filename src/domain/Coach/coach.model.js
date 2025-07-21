@@ -59,7 +59,16 @@ const coachSchema = new Schema({
     type: String,
     default: 'none',
   },
-  enrolledCourses: [enrolledCourseSchema],
+  coach_is_valid: {
+    type: Boolean,
+  },
+  courseSessionsProgram: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'ClassProgram',
+      required: false,
+    },
+  ],
   coach_Information: {
     father_name: String,
     national_code: String,

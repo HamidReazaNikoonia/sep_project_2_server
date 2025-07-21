@@ -9,7 +9,16 @@ const config = require('../../config/config');
 
 // Get all coaches
 const getAllCoaches = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['first_name', 'last_name', 'mobile', 'q', 'created_from_date', 'created_to_date']);
+  const filter = pick(req.query, [
+    'first_name',
+    'last_name',
+    'mobile',
+    'coach_is_valid',
+    'have_active_program',
+    'q',
+    'created_from_date',
+    'created_to_date',
+  ]);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
 
   const coaches = await coachService.getAllCoaches(filter, options);

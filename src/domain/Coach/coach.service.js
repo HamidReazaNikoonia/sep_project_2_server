@@ -8,6 +8,7 @@ const UserModel = require('../../models/user.model');
 const Coach = require('./coach.model');
 const CouchCourseProgram = require('../Admin/coach/coachCourseProgram/coach_course_program.model');
 const Transaction = require('../Transaction/transaction.model');
+const { classProgramModel } = require('../Course_Session/classProgram.model');
 
 // Service
 const ZarinpalCheckout = require('../../services/payment');
@@ -19,12 +20,34 @@ const config = require('../../config/config');
 const getAllCoaches = async (filter, options) => {
   // return Coach.find().populate('user_id', 'name email'); // Populate user details
 
-  const { q, created_from_date, created_to_date, ...otherFilters } = filter;
+  const { q, created_from_date, created_to_date, coach_is_valid, have_active_program, ...otherFilters } = filter;
 
   if (q) {
     // eslint-disable-next-line security/detect-non-literal-regexp
     const searchRegex = new RegExp(q, 'i'); // Case-insensitive search
     otherFilters.$or = [{ first_name: searchRegex }, { last_name: searchRegex }, { mobile: searchRegex }];
+  }
+
+  // Filter by coach_is_valid if provided
+  // if (have_active_program === 'true') {
+  //   // First, find all active class programs
+  //   const activePrograms = await classProgramModel.find({ status: 'active' }).distinct('coach');
+
+  //   // Add coach ids to the filter
+  //   otherFilters._id = { $in: activePrograms };
+  // }
+
+  // Filter for coaches with active programs
+  if (have_active_program === 'true') {
+    // First find all ClassPrograms with active status
+    const activePrograms = await classProgramModel.find({ status: 'active' }).distinct('_id');
+
+    // Then filter coaches who have at least one of these active programs
+    otherFilters.courseSessionsProgram = {
+      $in: activePrograms,
+      $exists: true,
+      $ne: [], // Ensure they have at least one program
+    };
   }
 
   // Add date range filtering if dates are provided

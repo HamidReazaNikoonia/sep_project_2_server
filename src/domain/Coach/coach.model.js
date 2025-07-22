@@ -67,6 +67,10 @@ const coachSchema = new Schema({
       type: Schema.Types.ObjectId,
       ref: 'ClassProgram',
       required: false,
+      autopopulate: {
+        select:
+          'course_name members createdAt sessions program_type course_language course_duration is_have_licence licence score status class_id',
+      },
     },
   ],
   coach_Information: {
@@ -79,6 +83,8 @@ const coachSchema = new Schema({
     group_name: String,
   },
 });
+
+coachSchema.plugin(require('mongoose-autopopulate'));
 
 const Coach = UserModel.discriminator('Coach', coachSchema);
 

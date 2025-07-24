@@ -1278,6 +1278,89 @@ const retryCourseSessionOrder = async ({ orderId, user }) => {
 };
 
 // Program
+const getAllProgramsForAdmin = async (filter, options) => {
+  const { q, created_from_date, created_to_date, coach_is_valid, have_active_program, program_status, ...otherFilters } =
+    filter;
+
+  if (q) {
+    // eslint-disable-next-line security/detect-non-literal-regexp
+    const searchRegex = new RegExp(q, 'i'); // Case-insensitive search
+    otherFilters.$or = [{ first_name: searchRegex }, { last_name: searchRegex }, { mobile: searchRegex }];
+  }
+
+  // Filter by coach_is_valid if provided
+  // if (have_active_program === 'true') {
+  //   // First, find all active class programs
+  //   const activePrograms = await classProgramModel.find({ status: 'active' }).distinct('coach');
+
+  //   // Add coach ids to the filter
+  //   otherFilters._id = { $in: activePrograms };
+  // }
+
+  // Filter for coaches with active programs
+  if (have_active_program === 'true') {
+    // First find all ClassPrograms with active status
+    const activePrograms = await classProgramModel.find({ status: 'active' }).distinct('_id');
+
+    // Then filter coaches who have at least one of these active programs
+    otherFilters.courseSessionsProgram = {
+      $in: activePrograms,
+      $exists: true,
+      $ne: [], // Ensure they have at least one program
+    };
+  }
+
+  if (program_status) {
+    if (program_status === 'inactive') {
+      // First find all ClassPrograms with active status
+      const inactivePrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
+
+      // Then filter coaches who have at least one of these active programs
+      otherFilters.courseSessionsProgram = {
+        $in: inactivePrograms,
+        $exists: true,
+        $ne: [], // Ensure they have at least one program
+      };
+    } else if (program_status === 'active') {
+      // First find all ClassPrograms with active status
+      const activePrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
+
+      // Then filter coaches who have at least one of these active programs
+      otherFilters.courseSessionsProgram = {
+        $in: activePrograms,
+        $exists: true,
+        $ne: [], // Ensure they have at least one program
+      };
+    } else if (program_status === 'completed') {
+      console.log('completed');
+      // First find all ClassPrograms with active status
+      const completedPrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
+
+      // Then filter coaches who have at least one of these active programs
+      otherFilters.courseSessionsProgram = {
+        $in: completedPrograms,
+        $exists: true,
+        $ne: [], // Ensure they have at least one program
+      };
+    }
+  }
+
+  // Add date range filtering if dates are provided
+  if (created_from_date || created_to_date) {
+    otherFilters.createdAt = {};
+
+    if (created_from_date) {
+      otherFilters.createdAt.$gte = new Date(created_from_date);
+    }
+
+    if (created_to_date) {
+      otherFilters.createdAt.$lte = new Date(created_to_date);
+    }
+  }
+  const programs = await classProgramModel.paginate(otherFilters, options);
+  return programs;
+};
+
 const getAllProgramsOfSpecificUser = async (userId) => {
   if (!userId) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
@@ -1352,4 +1435,5 @@ module.exports = {
   retryCourseSessionOrder,
   // Program
   getAllProgramsOfSpecificUser,
+  getAllProgramsForAdmin,
 };

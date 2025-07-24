@@ -156,6 +156,28 @@ const assignClassProgram = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(classProgram);
 });
 
+const getAllProgramsForAdmin = catchAsync(async (req, res) => {
+  if (!req?.user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
+  }
+
+  const filter = pick(req.query, [
+    'first_name',
+    'last_name',
+    'mobile',
+    'coach_is_valid',
+    'have_active_program',
+    'program_status',
+    'q',
+    'created_from_date',
+    'created_to_date',
+  ]);
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+
+  const programs = await courseSesshionService.getAllProgramsForAdmin(filter, options);
+  res.status(httpStatus.OK).send(programs);
+});
+
 const getAllProgramsOFSpecificCourse = catchAsync(async (req, res) => {
   const { course_id } = req.params;
 
@@ -427,6 +449,8 @@ module.exports = {
   // package
   getAllCourseSessionPackage,
   createCourseSessionPackage,
+  // Program
+  getAllProgramsForAdmin,
   getSpecificProgram,
   // checkout order
   createCourseSessionOrder,

@@ -49,6 +49,11 @@ const userSchema = mongoose.Schema(
       required: false,
       trim: true,
     },
+    student_id: {
+      type: String,
+      required: false,
+      trim: true,
+    },
     age: {
       type: Number,
       required: false,
@@ -231,6 +236,17 @@ userSchema.plugin(require('mongoose-autopopulate'));
  */
 userSchema.statics.isEmailTaken = async function (email, excludeUserId) {
   const user = await this.findOne({ email, _id: { $ne: excludeUserId } });
+  return !!user;
+};
+
+/**
+ * Check if mobile is taken
+ * @param {string} mobile - The user's mobile
+ * @param {ObjectId} [excludeUserId] - The id of the user to be excluded
+ * @returns {Promise<boolean>}
+ */
+userSchema.statics.isMobileTaken = async function (mobile, excludeUserId) {
+  const user = await this.findOne({ mobile, _id: { $ne: excludeUserId } });
   return !!user;
 };
 

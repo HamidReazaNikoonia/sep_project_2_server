@@ -1,7 +1,10 @@
 /* eslint-disable camelcase */
 const httpStatus = require('http-status');
+const randomstring = require('randomstring');
+const { CouponJS } = require('couponjs');
 const { User } = require('../models');
 const Coach = require('../domain/Coach/coach.model');
+const CouponCode = require('../domain/CouponCodes/couponCodes.model');
 
 const ApiError = require('../utils/ApiError');
 
@@ -19,9 +22,49 @@ const createCoachUserByOTP = async (userBody) => {
  * @returns {Promise<User>}
  */
 const createUser = async (userBody) => {
-  if (await User.isEmailTaken(userBody.email)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
+  if (await User.isMobileTaken(userBody.mobile)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Mobile already taken');
   }
+
+  // generate student_id
+  const userStudentId = randomstring.generate({
+    charset: 'numeric',
+    length: 6,
+  });
+
+  const coupon = new CouponJS();
+  const myCoupon = coupon.generate({
+    length: 4,
+    prefix: 'AVANO-',
+  });
+
+  const randomstr = randomstring.generate({
+    charset: 'numeric',
+    length: 4,
+  });
+
+  // create referal code
+  const newRefCode = await CouponCode.create({
+    code: `${myCoupon}${randomstr}`,
+    type: 'REFERRAL',
+    discount_type: 'PERCENTAGE',
+    discount_value: 20,
+    max_uses: 50,
+    valid_until: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+    // created_by: userDoc?.id,
+  });
+
+  if (!newRefCode) {
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create referral code');
+  }
+
+  Object.assign(userBody, {
+    referral_code: `${myCoupon}${randomstr}`,
+    student_id: userStudentId,
+  });
+
+  console.log('newRefCode', userBody);
+
   return User.create(userBody);
 };
 
@@ -36,7 +79,8 @@ const createUser = async (userBody) => {
  */
 const queryUsers = async (filter, options) => {
   // Extract 'q' and have_enrolled_course_session from filter and remove them from the original filter object
-  const { q, have_enrolled_course_session, have_wallet_amount, created_from_date, created_to_date, ...otherFilters } = filter;
+  const { q, have_enrolled_course_session, have_wallet_amount, created_from_date, created_to_date, ...otherFilters } =
+    filter;
 
   // If there's a search query, create a search condition
   if (q) {

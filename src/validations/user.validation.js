@@ -1,14 +1,34 @@
 const Joi = require('joi');
 const { password, objectId } = require('./custom.validation');
 
-const { provincesArray } = require('../utils/provinces');
+// const { provincesArray } = require('../utils/provinces');
 
 const createUser = {
   body: Joi.object().keys({
-    email: Joi.string().required().email(),
-    password: Joi.string().required().custom(password),
-    name: Joi.string().required(),
-    role: Joi.string().required().valid('user', 'admin'),
+    email: Joi.string().email(),
+    password: Joi.string().custom(password),
+    first_name: Joi.string().required(),
+    last_name: Joi.string().required(),
+    father_name: Joi.string(),
+    personal_img: Joi.string().custom(objectId),
+    avatar: Joi.string().custom(objectId),
+    nationalId: Joi.string(),
+    isNationalIdVerified: Joi.boolean(),
+    national_card_images: Joi.array().items(Joi.string().custom(objectId)),
+    age: Joi.number().integer().min(10).max(200),
+    tel: Joi.string(),
+    birth_date: Joi.date(),
+    mobile: Joi.string().required(),
+    role: Joi.string().required().valid('user', 'admin', 'coach'),
+    city: Joi.number(),
+    province: Joi.number(),
+    country: Joi.string(),
+    address: Joi.string(),
+    job_title: Joi.string(),
+    mariage_status: Joi.string().valid('single', 'married', 'widowed', 'divorced'),
+    wallet: Joi.number().min(0).max(100000000),
+    gender: Joi.string().valid('W', 'M').required(),
+    isVerified: Joi.boolean(),
   }),
 };
 
@@ -64,6 +84,7 @@ const updateUser = {
       birth_date: Joi.date(),
       mariage_status: Joi.string().valid('single', 'married', 'widowed', 'divorced'),
       parent_mariage_type: Joi.string().valid('FAMILY', 'NON_FAMILY'),
+      wallet_amount: Joi.number().min(0).max(100000000),
       wallet: Joi.number().min(0).max(100000000),
     })
     .min(1),

@@ -132,9 +132,26 @@ const updateUserById = async (userId, updateBody) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
 
+  // Destructure sensitive fields that shouldn't be updated directly
   const { mobile, otp, role, isEmailVerified, password, ...restUpdateBody } = updateBody;
 
+  // Handle wallet update specifically
+  if (restUpdateBody.wallet) {
+    // Ensure wallet.amount is a valid number and not negative
+    if (typeof restUpdateBody.wallet !== 'number' || restUpdateBody.wallet < 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid wallet amount');
+    }
+
+    // Update only the wallet amount
+    user.wallet_amount = restUpdateBody.wallet;
+
+    // Remove wallet from restUpdateBody to prevent double update
+    delete restUpdateBody.wallet;
+  }
+
+  // Update other fields
   Object.assign(user, restUpdateBody);
+
   await user.save();
   return user;
 };

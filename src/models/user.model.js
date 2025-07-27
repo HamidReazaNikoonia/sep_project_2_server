@@ -44,6 +44,11 @@ const userSchema = mongoose.Schema(
       required: false,
       trim: true,
     },
+    father_name: {
+      type: String,
+      required: false,
+      trim: true,
+    },
     age: {
       type: Number,
       required: false,
@@ -192,12 +197,10 @@ const userSchema = mongoose.Schema(
         autopopulate: true,
       },
     ],
-    wallet: {
-      amount: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
+    wallet_amount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     referral_code: {
       type: String,

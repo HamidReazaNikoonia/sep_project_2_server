@@ -2,6 +2,7 @@
 const httpStatus = require('http-status');
 const randomstring = require('randomstring');
 const { CouponJS } = require('couponjs');
+const mongoose = require('mongoose');
 const { User } = require('../models');
 const Coach = require('../domain/Coach/coach.model');
 const CouponCode = require('../domain/CouponCodes/couponCodes.model');
@@ -43,29 +44,53 @@ const createUser = async (userBody) => {
     length: 4,
   });
 
-  // create referal code
-  const newRefCode = await CouponCode.create({
-    code: `${myCoupon}${randomstr}`,
-    type: 'REFERRAL',
-    discount_type: 'PERCENTAGE',
-    discount_value: 20,
-    max_uses: 50,
-    valid_until: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
-    // created_by: userDoc?.id,
-  });
+  const referralCode = `${myCoupon}${randomstr}`;
 
-  if (!newRefCode) {
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create referral code');
+  // Use MongoDB transaction
+  const session = await mongoose.startSession();
+
+  let userDoc;
+
+  try {
+    await session.withTransaction(async () => {
+      // Create user first
+      const createdUsers = await User.create(
+        [
+          {
+            ...userBody,
+            referral_code: referralCode,
+            student_id: userStudentId,
+          },
+        ],
+        { session }
+      );
+
+      // eslint-disable-next-line prefer-destructuring
+      userDoc = createdUsers[0]; // Store the actual user document
+
+      // Create coupon with user ID
+      await CouponCode.create(
+        [
+          {
+            code: referralCode,
+            type: 'REFERRAL',
+            discount_type: 'PERCENTAGE',
+            discount_value: 20,
+            max_uses: 50,
+            valid_until: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+            created_by: userDoc._id,
+          },
+        ],
+        { session }
+      );
+
+      // Don't return anything from the transaction function
+    });
+
+    return userDoc; // Return the actual user document
+  } finally {
+    await session.endSession();
   }
-
-  Object.assign(userBody, {
-    referral_code: `${myCoupon}${randomstr}`,
-    student_id: userStudentId,
-  });
-
-  console.log('newRefCode', userBody);
-
-  return User.create(userBody);
 };
 
 /**
@@ -96,7 +121,7 @@ const queryUsers = async (filter, options) => {
 
   // Add condition for users with wallet amount if filter is true
   if (have_wallet_amount === 'true') {
-    otherFilters['wallet.amount'] = { $gt: 0 };
+    otherFilters['wallet_amount'] = { $gt: 0 };
   }
 
   // Add date range filtering if dates are provided

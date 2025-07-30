@@ -1292,6 +1292,9 @@ const getAllProgramsForAdmin = async (filter, options) => {
     is_fire_sale,
     program_type,
     have_members,
+    is_have_capacity,
+    is_have_capacity_in_progress,
+    is_have_min_capacity,
     ...otherFilters
   } = filter;
 
@@ -1336,7 +1339,7 @@ const getAllProgramsForAdmin = async (filter, options) => {
       $addFields: {
         course: { $arrayElemAt: ['$courseDetails', 0] },
         coach: { $arrayElemAt: ['$coachDetails', 0] },
-
+        id: '$_id',
         // Only set class_id if the lookup found something
         class_id: { $arrayElemAt: ['$classDetails', 0] },
       },
@@ -1420,6 +1423,21 @@ const getAllProgramsForAdmin = async (filter, options) => {
       matchConditions['members.0'] = { $exists: true };
     }
 
+    if (is_have_capacity === 'true') {
+      matchConditions.$expr = {
+        $eq: [{ $size: '$members' }, '$max_member_accept'],
+      };
+    }
+
+    if (is_have_capacity_in_progress === 'true') {
+      matchConditions.$expr = {
+        $and: [
+          { $gt: [{ $size: '$members' }, { $divide: ['$max_member_accept', 2] }] },
+          { $lt: [{ $size: '$members' }, '$max_member_accept'] }
+        ],
+      };
+    }
+
     // Date range filtering
     if (created_from_date || created_to_date) {
       matchConditions.createdAt = {};
@@ -1485,6 +1503,26 @@ const getAllProgramsForAdmin = async (filter, options) => {
   if (is_fire_sale !== undefined) otherFilters.is_fire_sale = is_fire_sale === 'true';
   if (program_type) otherFilters.program_type = program_type;
   if (have_members === 'true') otherFilters['members.0'] = { $exists: true };
+  if (is_have_capacity === 'true') {
+    otherFilters.$expr = {
+      $eq: [{ $size: '$members' }, '$max_member_accept'],
+    };
+  }
+
+  if (is_have_capacity_in_progress === 'true') {
+    otherFilters.$expr = {
+      $and: [
+        { $gt: [{ $size: '$members' }, { $divide: ['$max_member_accept', 2] }] },
+        { $lt: [{ $size: '$members' }, '$max_member_accept'] }
+      ],
+    };
+  }
+
+  if (is_have_min_capacity === 'true') {
+    otherFilters.$expr = {
+      $gt: [{ $size: '$members' }, { $multiply: ['$max_member_accept', 0.2] }]
+    };
+  }
 
   // Date range filtering
   if (created_from_date || created_to_date) {

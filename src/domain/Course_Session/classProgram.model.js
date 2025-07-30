@@ -173,6 +173,12 @@ classProgramSchema.index({ course: 1 });
 classProgramSchema.index({ coach: 1 });
 classProgramSchema.index({ 'sessions.date': 1 });
 
+// Add compound indexes for common filter combinations
+
+classProgramSchema.index({ program_type: 1, status: 1 });
+classProgramSchema.index({ is_fire_sale: 1, status: 1 });
+classProgramSchema.index({ createdAt: -1 });
+
 const sessionPackageModel = mongoose.model('Session_Package', sessionPackagesSchema);
 const classProgramModel = mongoose.model('ClassProgram', classProgramSchema);
 module.exports = { sessionPackageModel, classProgramModel };

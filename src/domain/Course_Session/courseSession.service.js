@@ -1279,84 +1279,224 @@ const retryCourseSessionOrder = async ({ orderId, user }) => {
 
 // Program
 const getAllProgramsForAdmin = async (filter, options) => {
-  const { q, created_from_date, created_to_date, coach_is_valid, have_active_program, program_status, ...otherFilters } =
-    filter;
+  const {
+    q,
+    created_from_date,
+    created_to_date,
+    coach_id,
+    status,
+    coach_full_name,
+    course_id,
+    course_title,
+    class_id,
+    is_fire_sale,
+    program_type,
+    have_members,
+    ...otherFilters
+  } = filter;
 
+  // If there's a search query, use aggregation pipeline for complex search
   if (q) {
     // eslint-disable-next-line security/detect-non-literal-regexp
-    const searchRegex = new RegExp(q, 'i'); // Case-insensitive search
-    otherFilters.$or = [{ first_name: searchRegex }, { last_name: searchRegex }, { mobile: searchRegex }];
-  }
+    const searchRegex = new RegExp(q, 'i');
 
-  // Filter by coach_is_valid if provided
-  // if (have_active_program === 'true') {
-  //   // First, find all active class programs
-  //   const activePrograms = await classProgramModel.find({ status: 'active' }).distinct('coach');
+    // Build aggregation pipeline
+    const pipeline = [];
 
-  //   // Add coach ids to the filter
-  //   otherFilters._id = { $in: activePrograms };
-  // }
+    // Add lookups for referenced collections
+    pipeline.push(
+      {
+        $lookup: {
+          from: 'course_sessions', // or CourseSession.collection.name
+          localField: 'course',
+          foreignField: '_id',
+          as: 'courseDetails',
+        },
+      },
+      {
+        $lookup: {
+          from: 'users', // or User.collection.name
+          localField: 'coach',
+          foreignField: '_id',
+          as: 'coachDetails',
+        },
+      },
+      {
+        $lookup: {
+          from: 'classnos',
+          localField: 'class_id',
+          foreignField: '_id',
+          as: 'classDetails',
+        },
+      }
+    );
 
-  // Filter for coaches with active programs
-  if (have_active_program === 'true') {
-    // First find all ClassPrograms with active status
-    const activePrograms = await classProgramModel.find({ status: 'active' }).distinct('_id');
+    // Convert lookup arrays to single objects (like populate does)
+    pipeline.push({
+      $addFields: {
+        course: { $arrayElemAt: ['$courseDetails', 0] },
+        coach: { $arrayElemAt: ['$coachDetails', 0] },
 
-    // Then filter coaches who have at least one of these active programs
-    otherFilters.courseSessionsProgram = {
-      $in: activePrograms,
-      $exists: true,
-      $ne: [], // Ensure they have at least one program
+        // Only set class_id if the lookup found something
+        class_id: { $arrayElemAt: ['$classDetails', 0] },
+      },
+    });
+
+    // Now lookup the coach's avatar from Upload collection
+    pipeline.push({
+      $lookup: {
+        from: 'uploads', // Upload model collection name
+        localField: 'coach.avatar',
+        foreignField: '_id',
+        as: 'coachAvatarDetails',
+      },
+    });
+
+    // Add the avatar as a single object to the coach
+    pipeline.push({
+      $addFields: {
+        'coach.avatar': { $arrayElemAt: ['$coachAvatarDetails', 0] },
+      },
+    });
+
+    // Remove the temporary array fields
+    pipeline.push({
+      $project: {
+        courseDetails: 0,
+        coachDetails: 0,
+        classDetails: 0,
+        coachAvatarDetails: 0, // Remove the temporary avatar array
+      },
+    });
+
+    // Build match conditions
+    const matchConditions = { ...otherFilters };
+
+    // Handle search query 'q' across multiple referenced fields
+    matchConditions.$or = [
+      // Search in course title/subtitle/description
+      { 'course.title': searchRegex },
+      // { 'course.sub_title': searchRegex },
+      // { 'course.description': searchRegex },
+      // Search in coach name/mobile
+      { 'coach.first_name': searchRegex },
+      { 'coach.last_name': searchRegex },
+      { 'coach.mobile': searchRegex },
+      // Search in class title
+      { 'class_id.class_title': searchRegex },
+      // Search in program's own fields
+      // { 'subjects.title': searchRegex },
+      // { 'subjects.sub_title': searchRegex },
+      // { course_language: searchRegex },
+      // { licence: searchRegex },
+    ];
+
+    // Add specific filters
+    if (coach_id) {
+      matchConditions['coach._id'] = new mongoose.Types.ObjectId(coach_id);
+    }
+
+    if (course_id) {
+      matchConditions['course._id'] = new mongoose.Types.ObjectId(course_id);
+    }
+
+    if (class_id) {
+      matchConditions['class_id._id'] = new mongoose.Types.ObjectId(class_id);
+    }
+
+    if (status) {
+      matchConditions.status = status;
+    }
+
+    if (is_fire_sale !== undefined) {
+      matchConditions.is_fire_sale = is_fire_sale === 'true';
+    }
+
+    if (program_type) {
+      matchConditions.program_type = program_type;
+    }
+
+    if (have_members === 'true') {
+      matchConditions['members.0'] = { $exists: true };
+    }
+
+    // Date range filtering
+    if (created_from_date || created_to_date) {
+      matchConditions.createdAt = {};
+      if (created_from_date) {
+        matchConditions.createdAt.$gte = new Date(created_from_date);
+      }
+      if (created_to_date) {
+        matchConditions.createdAt.$lte = new Date(created_to_date);
+      }
+    }
+
+    // Add match stage
+    pipeline.push({ $match: matchConditions });
+
+    // Handle sorting (replicate paginate plugin logic)
+    let sortStage = { createdAt: -1 }; // default sort
+    if (options.sortBy) {
+      const sortObj = {};
+      options.sortBy.split(',').forEach((sortOption) => {
+        const [key, order] = sortOption.split(':');
+        sortObj[key] = order === 'desc' ? -1 : 1;
+      });
+      sortStage = sortObj;
+    }
+    pipeline.push({ $sort: sortStage });
+
+    // Handle pagination (replicate paginate plugin logic)
+    const limit = options.limit && parseInt(options.limit, 10) > 0 ? parseInt(options.limit, 10) : 10;
+    const page = options.page && parseInt(options.page, 10) > 0 ? parseInt(options.page, 10) : 1;
+    const skip = (page - 1) * limit;
+
+    // Use $facet to get both count and paginated results in one query
+    pipeline.push({
+      $facet: {
+        // Get total count
+        totalCount: [{ $count: 'count' }],
+        // Get paginated results
+        results: [{ $skip: skip }, { $limit: limit }],
+      },
+    });
+
+    // Execute single aggregation query
+    const [result] = await classProgramModel.aggregate(pipeline);
+
+    const totalResults = result.totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(totalResults / limit);
+
+    // Return in the same format as paginate plugin
+    return {
+      results: result.results,
+      page,
+      limit,
+      totalPages,
+      totalResults,
     };
   }
 
-  if (program_status) {
-    if (program_status === 'inactive') {
-      // First find all ClassPrograms with active status
-      const inactivePrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
+  // If no search query, use standard filtering with pagination (existing logic)
+  if (coach_id) otherFilters.coach = coach_id;
+  if (course_id) otherFilters.course = course_id;
+  if (class_id) otherFilters.class_id = class_id;
+  if (status) otherFilters.status = status;
+  if (is_fire_sale !== undefined) otherFilters.is_fire_sale = is_fire_sale === 'true';
+  if (program_type) otherFilters.program_type = program_type;
+  if (have_members === 'true') otherFilters['members.0'] = { $exists: true };
 
-      // Then filter coaches who have at least one of these active programs
-      otherFilters.courseSessionsProgram = {
-        $in: inactivePrograms,
-        $exists: true,
-        $ne: [], // Ensure they have at least one program
-      };
-    } else if (program_status === 'active') {
-      // First find all ClassPrograms with active status
-      const activePrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
-
-      // Then filter coaches who have at least one of these active programs
-      otherFilters.courseSessionsProgram = {
-        $in: activePrograms,
-        $exists: true,
-        $ne: [], // Ensure they have at least one program
-      };
-    } else if (program_status === 'completed') {
-      console.log('completed');
-      // First find all ClassPrograms with active status
-      const completedPrograms = await classProgramModel.find({ status: program_status }).distinct('_id');
-
-      // Then filter coaches who have at least one of these active programs
-      otherFilters.courseSessionsProgram = {
-        $in: completedPrograms,
-        $exists: true,
-        $ne: [], // Ensure they have at least one program
-      };
-    }
-  }
-
-  // Add date range filtering if dates are provided
+  // Date range filtering
   if (created_from_date || created_to_date) {
     otherFilters.createdAt = {};
-
     if (created_from_date) {
       otherFilters.createdAt.$gte = new Date(created_from_date);
     }
-
     if (created_to_date) {
       otherFilters.createdAt.$lte = new Date(created_to_date);
     }
   }
+
   const programs = await classProgramModel.paginate(otherFilters, options);
   return programs;
 };

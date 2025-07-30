@@ -162,12 +162,17 @@ const getAllProgramsForAdmin = catchAsync(async (req, res) => {
   }
 
   const filter = pick(req.query, [
-    'first_name',
-    'last_name',
+    'coach_id',
+    'coach_full_name',
+    'course_id',
+    'course_title',
+    'class_id',
+    'is_fire_sale',
     'mobile',
+    'program_type',
+    'have_members',
     'coach_is_valid',
-    'have_active_program',
-    'program_status',
+    'status',
     'q',
     'created_from_date',
     'created_to_date',

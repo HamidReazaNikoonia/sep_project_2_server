@@ -181,6 +181,11 @@ courseSessionSchema.pre('save', async function (next) {
 
 courseSessionSchema.plugin(require('mongoose-autopopulate'));
 
+// Add compound indexes for common filter combinations
+courseSessionSchema.index({ course_session_category: 1 });
+courseSessionSchema.index({ coaches: 1 });
+courseSessionSchema.index({ createdAt: -1 });
+
 // add plugin that converts mongoose to json
 courseSessionSchema.plugin(toJSON);
 courseSessionSchema.plugin(paginate);

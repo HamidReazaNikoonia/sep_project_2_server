@@ -479,9 +479,24 @@ const getSpecificProgram = async (programId) => {
   // Find specific program by ID
   const program = await classProgramModel
     .findById(programId)
-    .populate('coach', 'first_name last_name avatar') // Populate coach details
-    .populate('course', 'title sub_title thumbnail') // Populate basic course info
+    .populate({
+      path: 'coach',
+      select: 'first_name last_name avatar',
+      populate: {
+        path: 'avatar',
+        select: 'file_name',
+      },
+    }) // Populate coach details with avatar filename
+    .populate({
+      path: 'course',
+      select: 'title sub_title tumbnail',
+      populate: {
+        path: 'tumbnail',
+        select: 'file_name',
+      },
+    }) // Populate basic course info with thumbnail filename
     .populate('sample_media.file')
+    .populate('class_id')
     .populate('packages')
     .lean();
 
@@ -1433,7 +1448,7 @@ const getAllProgramsForAdmin = async (filter, options) => {
       matchConditions.$expr = {
         $and: [
           { $gt: [{ $size: '$members' }, { $divide: ['$max_member_accept', 2] }] },
-          { $lt: [{ $size: '$members' }, '$max_member_accept'] }
+          { $lt: [{ $size: '$members' }, '$max_member_accept'] },
         ],
       };
     }
@@ -1513,14 +1528,14 @@ const getAllProgramsForAdmin = async (filter, options) => {
     otherFilters.$expr = {
       $and: [
         { $gt: [{ $size: '$members' }, { $divide: ['$max_member_accept', 2] }] },
-        { $lt: [{ $size: '$members' }, '$max_member_accept'] }
+        { $lt: [{ $size: '$members' }, '$max_member_accept'] },
       ],
     };
   }
 
   if (is_have_min_capacity === 'true') {
     otherFilters.$expr = {
-      $gt: [{ $size: '$members' }, { $multiply: ['$max_member_accept', 0.2] }]
+      $gt: [{ $size: '$members' }, { $multiply: ['$max_member_accept', 0.2] }],
     };
   }
 

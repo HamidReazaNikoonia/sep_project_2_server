@@ -22,6 +22,7 @@ router
   .post(courseController.createCourseSessionPackage);
 
 router.route('/admin/program').get(auth(), courseController.getAllProgramsForAdmin);
+router.route('/admin/program/:program_id').get(auth(), courseController.getSpecificProgram);
 
 router.route('/admin/program/:userId').get(courseController.getAllProgramsOfSpecificUser);
 

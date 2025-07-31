@@ -178,6 +178,7 @@ const getAllProgramsForAdmin = catchAsync(async (req, res) => {
     'created_to_date',
     'is_have_capacity',
     'is_have_capacity_in_progress',
+    'is_have_min_capacity',
   ]);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
 

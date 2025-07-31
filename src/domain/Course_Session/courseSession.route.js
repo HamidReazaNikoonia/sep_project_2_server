@@ -24,6 +24,8 @@ router
 router.route('/admin/program').get(auth(), courseController.getAllProgramsForAdmin);
 router.route('/admin/program/:program_id').get(auth(), courseController.getSpecificProgram);
 
+router.route('/admin/program/:program_id/members').get(auth(), courseController.getProgramMembers);
+
 router.route('/admin/program/:userId').get(courseController.getAllProgramsOfSpecificUser);
 
 // router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE

@@ -437,6 +437,12 @@ const getAllProgramsOfSpecificUser = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(programs);
 });
 
+const getProgramMembers = catchAsync(async (req, res) => {
+  const { program_id } = req.params;
+  const members = await courseSesshionService.getProgramMembers(program_id);
+  res.status(httpStatus.OK).send(members);
+});
+
 module.exports = {
   // admin
   getAllCoursesSessionForAdmin,
@@ -468,4 +474,5 @@ module.exports = {
   retryCourseSessionOrder,
   // Program
   getAllProgramsOfSpecificUser,
+  getProgramMembers,
 };

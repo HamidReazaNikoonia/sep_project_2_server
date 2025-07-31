@@ -19,6 +19,27 @@ const sessionPackagesSchema = new mongoose.Schema({
   },
 });
 
+// First, create an attendance schema
+const attendanceSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ['present', 'absent', 'excused'],
+      required: false,
+    },
+    note: {
+      type: String, // Optional note about the attendance
+    },
+  },
+  { _id: false }
+);
+
+// Modify your existing sessionSchema to include attendance and report
 const sessionSchema = new mongoose.Schema(
   {
     date: {
@@ -26,7 +47,6 @@ const sessionSchema = new mongoose.Schema(
       required: true,
       validate: {
         validator(date) {
-          // Only validate dates for new sessions or when date is being modified
           if (this.isNew || this.isModified('date')) {
             return date > new Date();
           }
@@ -58,9 +78,54 @@ const sessionSchema = new mongoose.Schema(
       enum: ['scheduled', 'completed', 'cancelled'],
       default: 'scheduled',
     },
+    // New fields for attendance and reporting
+    attendance: [attendanceSchema],
+    sessionReport: {
+      description: {
+        type: String,
+      },
+      topics_covered: [
+        {
+          type: String,
+        },
+      ],
+      learning_objectives_met: [
+        {
+          type: String,
+        },
+      ],
+      submitted_at: {
+        type: Date,
+      },
+      attachments: [
+        {
+          file: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Upload',
+            autopopulate: true,
+          },
+          description: String,
+        },
+      ],
+    },
   },
-  { _id: true }
+  { _id: true, timestamps: true }
 );
+
+// Add a pre-save middleware to validate session completion
+// sessionSchema.pre('save', function (next) {
+//   if (this.isModified('status') && this.status === 'completed') {
+//     // Ensure session report exists when marking as completed
+//     if (!this.sessionReport || !this.sessionReport.description) {
+//       next(new Error('Session report is required when marking session as completed'));
+//       return;
+//     }
+
+//     // Set submission timestamp
+//     this.sessionReport.submitted_at = new Date();
+//   }
+//   next();
+// });
 
 const classProgramSchema = mongoose.Schema(
   {

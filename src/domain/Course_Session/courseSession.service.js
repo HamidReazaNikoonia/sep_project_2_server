@@ -1596,6 +1596,23 @@ const getAllProgramsOfSpecificUser = async (userId) => {
   return userWithEnrollments;
 };
 
+const getProgramMembers = async (programId) => {
+  const program = await classProgramModel.findById(programId).populate({
+    path: 'members.user',
+    select: 'first_name last_name avatar _id',
+    populate: {
+      path: 'avatar',
+      model: 'Upload',
+    },
+  });
+
+  if (!program) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Program not found');
+  }
+
+  return program.members;
+};
+
 module.exports = {
   checkCoachAvailability,
   // ADMIN
@@ -1629,4 +1646,5 @@ module.exports = {
   // Program
   getAllProgramsOfSpecificUser,
   getAllProgramsForAdmin,
+  getProgramMembers,
 };

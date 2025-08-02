@@ -443,6 +443,22 @@ const getProgramMembers = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(members);
 });
 
+const completeSessionById = catchAsync(async (req, res) => {
+  const { program_id, session_id } = req.params;
+  const { report_description, present_users } = req.body;
+
+  // this service will find program by id
+  // then find and update session by id
+  // session.attendance
+  const session = await courseSesshionService.completeSessionById({
+    programId: program_id,
+    sessionId: session_id,
+    sessionReportDescription: report_description,
+    presentUsers: present_users,
+  });
+  res.status(httpStatus.OK).send(session);
+});
+
 module.exports = {
   // admin
   getAllCoursesSessionForAdmin,
@@ -475,4 +491,5 @@ module.exports = {
   // Program
   getAllProgramsOfSpecificUser,
   getProgramMembers,
+  completeSessionById,
 };

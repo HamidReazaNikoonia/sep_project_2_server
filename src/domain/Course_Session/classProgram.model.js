@@ -20,24 +20,6 @@ const sessionPackagesSchema = new mongoose.Schema({
 });
 
 // First, create an attendance schema
-const attendanceSchema = new mongoose.Schema(
-  {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ['present', 'absent', 'excused'],
-      required: false,
-    },
-    note: {
-      type: String, // Optional note about the attendance
-    },
-  },
-  { _id: false }
-);
 
 // Modify your existing sessionSchema to include attendance and report
 const sessionSchema = new mongoose.Schema(
@@ -79,7 +61,23 @@ const sessionSchema = new mongoose.Schema(
       default: 'scheduled',
     },
     // New fields for attendance and reporting
-    attendance: [attendanceSchema],
+    attendance: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        status: {
+          type: String,
+          enum: ['present', 'absent', 'excused'],
+          required: false,
+        },
+        note: {
+          type: String, // Optional note about the attendance
+        },
+      },
+    ],
     sessionReport: {
       description: {
         type: String,

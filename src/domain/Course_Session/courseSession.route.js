@@ -26,6 +26,8 @@ router.route('/admin/program/:program_id').get(auth(), courseController.getSpeci
 
 router.route('/admin/program/:program_id/members').get(auth(), courseController.getProgramMembers);
 
+router.route('/admin/program/:program_id/complete-session/:session_id').post(auth(), courseController.completeSessionById);
+
 router.route('/admin/program/:userId').get(courseController.getAllProgramsOfSpecificUser);
 
 // router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE

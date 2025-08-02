@@ -1613,6 +1613,65 @@ const getProgramMembers = async (programId) => {
   return program.members;
 };
 
+const completeSessionById = async ({ programId, sessionId, sessionReportDescription, presentUsers }) => {
+  // Find the program
+  const program = await classProgramModel.findById(programId);
+  if (!program) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Program not found');
+  }
+
+  // Find the specific session
+  const selectedSession = program.sessions.find((session) => session._id.toString() === sessionId);
+  if (!selectedSession) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+  }
+
+  // Update session status to completed
+  selectedSession.status = 'completed';
+
+  // Add session report description if provided
+  if (sessionReportDescription) {
+    selectedSession.sessionReport = {
+      description: sessionReportDescription,
+      submitted_at: new Date(),
+    };
+  }
+
+  const programMembers = program.members.map((member) => member.user.toString());
+  // console.log('presentUsers', presentUsers);
+  // console.log('program.members', program.members);
+  // console.log('programMembers', programMembers);
+  // Update attendance records
+  // Clear existing attendance records for this session
+  selectedSession.attendance = [];
+  // Create a Set of present user IDs for faster lookup
+  const presentUserIds = new Set(presentUsers.map((userId) => userId.toString()));
+
+  // Add new attendance records
+  selectedSession.attendance = presentUsers.map((user) => ({
+    user,
+    status: 'present', // Default to absent if status not provided
+    note: user?.note, // Optional note will be included if provided
+  }));
+
+  // Then, add absent records for members who are not in presentUsers
+  const absentMembers = programMembers.filter((memberId) => !presentUserIds.has(memberId));
+
+  // Add absent records
+  selectedSession.attendance.push(
+    ...absentMembers.map((memberId) => ({
+      user: memberId,
+      status: 'absent',
+      note: 'Automatically marked as absent',
+    }))
+  );
+
+  // Save the updated program
+  await program.save();
+
+  return program;
+};
+
 module.exports = {
   checkCoachAvailability,
   // ADMIN
@@ -1647,4 +1706,5 @@ module.exports = {
   getAllProgramsOfSpecificUser,
   getAllProgramsForAdmin,
   getProgramMembers,
+  completeSessionById,
 };

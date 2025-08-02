@@ -498,6 +498,22 @@ const getSpecificProgram = async (programId) => {
     .populate('sample_media.file')
     .populate('class_id')
     .populate('packages')
+    .populate({
+      path: 'sessions.attendance.user',
+      select: 'first_name last_name avatar',
+      populate: {
+        path: 'avatar',
+        select: 'file_name',
+      },
+    })
+    .populate({
+      path: 'members.user',
+      select: 'first_name last_name avatar mobile student_id',
+      populate: {
+        path: 'avatar',
+        select: 'file_name',
+      },
+    })
     .lean();
 
   if (!program) {
@@ -1672,6 +1688,30 @@ const completeSessionById = async ({ programId, sessionId, sessionReportDescript
   return program;
 };
 
+const cancelSessionById = async ({ programId, sessionId }) => {
+  const program = await classProgramModel.findById(programId);
+  if (!program) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Program not found');
+  }
+
+  const selectedSession = program.sessions.find((session) => session._id.toString() === sessionId);
+  if (!selectedSession) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+  }
+
+  // Update session status to cancelled
+  selectedSession.status = 'cancelled';
+
+  // TODO
+  // 1- SMS to All members For Canceled Session
+  // 2- SMS to Admin and coach
+
+  // Save the updated program
+  await program.save();
+
+  return program;
+};
+
 module.exports = {
   checkCoachAvailability,
   // ADMIN
@@ -1702,9 +1742,10 @@ module.exports = {
   validateCheckoutCourseSessionOrder,
   getCourseSessionOrderById,
   retryCourseSessionOrder,
-  // Program
+  // Program Management
   getAllProgramsOfSpecificUser,
   getAllProgramsForAdmin,
   getProgramMembers,
   completeSessionById,
+  cancelSessionById,
 };

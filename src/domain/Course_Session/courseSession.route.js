@@ -24,10 +24,19 @@ router
 router.route('/admin/program').get(auth(), courseController.getAllProgramsForAdmin);
 router.route('/admin/program/:program_id').get(auth(), courseController.getSpecificProgram);
 
+/**
+ * Program Management Routes
+ */
+// Get Program Session Members by Id
 router.route('/admin/program/:program_id/members').get(auth(), courseController.getProgramMembers);
-
+// Complete Session by Id
 router.route('/admin/program/:program_id/complete-session/:session_id').post(auth(), courseController.completeSessionById);
+// Cancel Program Session By Id
+router.route('/admin/program/:program_id/cancel-session/:session_id').post(auth(), courseController.cancelSessionById);
 
+/**
+ * ******************************
+ */
 router.route('/admin/program/:userId').get(courseController.getAllProgramsOfSpecificUser);
 
 // router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE

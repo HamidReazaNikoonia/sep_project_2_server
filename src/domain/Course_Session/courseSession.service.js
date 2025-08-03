@@ -774,6 +774,364 @@ const createCourseSessionPackage = async (requestBody) => {
  *  Course Session Order Checkout
  */
 
+const __getAllOrdersOfProgramForAdmin = async () => {
+  const order = await CourseSessionOrderModel.find();
+  if (!order) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+  return order;
+};
+
+// Get all orders
+const getAllOrdersOfProgramForAdmin = async (filter, options) => {
+  const {
+    coach_id,
+    course_id,
+    program_id,
+    class_id,
+    user_id,
+    order_status,
+    payment_status,
+    transaction_id,
+    reference,
+    is_have_package,
+    with_coupon,
+    with_discound,
+    program_discounted,
+    user_search,
+    program_search,
+    created_from_date,
+    created_to_date,
+    ...otherFilters
+  } = filter;
+
+  // const { page = 1, limit = 10 } = options;
+  const page = parseInt(options.page, 10) || 1;
+  const limit = parseInt(options.limit, 10) || 10;
+
+  // console.log({ filter });
+
+  // Helper function to convert to ObjectId safely
+  const toObjectId = (id) => {
+    try {
+      return new mongoose.Types.ObjectId(id);
+    } catch (error) {
+      throw new Error(`Invalid ObjectId: ${id}`);
+    }
+  };
+
+  // If there's a search query, use aggregation pipeline for complex search
+  if (user_search || program_search) {
+    const pipeline = [];
+
+    // Add lookups for referenced collections with proper unwinding
+    pipeline.push(
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      {
+        $unwind: {
+          path: '$user',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: 'classprograms',
+          localField: 'classProgramId',
+          foreignField: '_id',
+          as: 'classProgram'
+        }
+      },
+      {
+        $unwind: {
+          path: '$classProgram',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'classProgramId.coach',
+          foreignField: '_id',
+          as: 'coach'
+        }
+      },
+      // {
+      //   $unwind: {
+      //     path: '$coach',
+      //     preserveNullAndEmptyArrays: true
+      //   }
+      // },
+      {
+        $lookup: {
+          from: 'course_sessions',
+          localField: 'courseSessionId',
+          foreignField: '_id',
+          as: 'courseSession'
+        }
+      },
+      {
+        $unwind: {
+          path: '$courseSession',
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    );
+
+    // Add search conditions
+    const searchConditions = [];
+
+    if (user_search) {
+      const userSearchRegex = new RegExp(user_search, 'i');
+      searchConditions.push(
+        { 'user.first_name': userSearchRegex },
+        { 'user.last_name': userSearchRegex },
+        { 'user.mobile': userSearchRegex }
+      );
+    }
+
+    if (program_search) {
+      const programSearchRegex = new RegExp(program_search, 'i');
+      searchConditions.push(
+        { 'coach.first_name': programSearchRegex },
+        { 'coach.last_name': programSearchRegex },
+        { 'coach.mobile': programSearchRegex }
+      );
+    }
+
+    // Build match stage with search and other filters
+    const matchConditions = [];
+
+    if (searchConditions.length > 0) {
+      matchConditions.push({ $or: searchConditions });
+    }
+
+    // Add other filters with proper ObjectId conversion
+    if (coach_id) matchConditions.push({ 'coach._id': toObjectId(coach_id) });
+    if (course_id) matchConditions.push({ courseSessionId: toObjectId(course_id) });
+    if (program_id) matchConditions.push({ classProgramId: toObjectId(program_id) });
+    if (class_id) matchConditions.push({ 'classProgram.class_id': toObjectId(class_id) });
+    if (user_id) matchConditions.push({ userId: toObjectId(user_id) });
+    if (order_status) matchConditions.push({ orderStatus: order_status });
+    if (payment_status) matchConditions.push({ paymentStatus: payment_status });
+    if (transaction_id) matchConditions.push({ transactionId: toObjectId(transaction_id) });
+    if (reference) matchConditions.push({ reference: reference });
+
+    // Array/field existence checks
+    if (is_have_package === 'true') {
+      matchConditions.push({
+        packages: { $exists: true, $ne: [] },
+        $expr: { $gt: [{ $size: '$packages' }, 0] }
+      });
+    }
+    if (with_coupon === 'true') {
+      matchConditions.push({
+        appliedCoupons: { $exists: true, $ne: [] },
+        $expr: { $gt: [{ $size: '$appliedCoupons' }, 0] }
+      });
+    }
+    if (with_discound === 'true') {
+      matchConditions.push({
+        total_discount: { $exists: true, $gt: 0 }
+      });
+    }
+    if (program_discounted === 'true') {
+      matchConditions.push({
+        program_price_discounted: { $exists: true, $gt: 0 }
+      });
+    }
+
+    // Date range filtering
+    if (created_from_date || created_to_date) {
+      const dateFilter = {};
+      if (created_from_date) {
+        dateFilter.$gte = new Date(created_from_date);
+      }
+      if (created_to_date) {
+        dateFilter.$lte = new Date(created_to_date);
+      }
+      matchConditions.push({ createdAt: dateFilter });
+    }
+
+    // Add match stage only if we have conditions
+    if (matchConditions.length > 0) {
+      pipeline.push({
+        $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions }
+      });
+    }
+
+    // Add pagination with proper field reconstruction
+    pipeline.push(
+      {
+        $facet: {
+          results: [
+            { $skip: (page - 1) * limit },
+            { $limit: 10 },
+            {
+              $addFields: {
+                userId: '$user',
+                classProgramId: '$classProgram',
+                transactionId: '$transactionId'
+              }
+            }
+          ],
+          totalCount: [{ $count: 'count' }]
+        }
+      }
+    );
+
+    // Execute aggregation
+    const [result] = await CourseSessionOrderModel.aggregate(pipeline);
+    const totalResults = result.totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(totalResults / limit);
+
+    return {
+      results: result.results,
+      page,
+      limit,
+      totalPages,
+      totalResults,
+    };
+  }
+
+  // If no search query, use standard filtering with pagination
+  const matchFilters = {};
+
+  // Basic filters with proper ObjectId conversion
+  if (course_id) matchFilters.courseSessionId = toObjectId(course_id);
+  if (program_id) matchFilters.classProgramId = toObjectId(program_id);
+  if (user_id) matchFilters.userId = toObjectId(user_id);
+  if (order_status) matchFilters.orderStatus = order_status;
+  if (payment_status) matchFilters.paymentStatus = payment_status;
+  if (transaction_id) matchFilters.transactionId = toObjectId(transaction_id);
+  if (reference) matchFilters.reference = reference;
+
+  // Array/field existence checks - fix the syntax
+  if (is_have_package === 'true') {
+    matchFilters['packages.0'] = { $exists: true };
+  }
+  if (with_coupon === 'true') {
+    matchFilters['appliedCoupons.0'] = { $exists: true };
+  }
+  if (with_discound === 'true') {
+    matchFilters.total_discount = { $gt: 0 };
+  }
+  if (program_discounted === 'true') {
+    matchFilters.program_price_discounted = { $gt: 0 };
+  }
+
+  // Date range filtering
+  if (created_from_date || created_to_date) {
+    matchFilters.createdAt = {};
+    if (created_from_date) {
+      matchFilters.createdAt.$gte = new Date(created_from_date);
+    }
+    if (created_to_date) {
+      matchFilters.createdAt.$lte = new Date(created_to_date);
+    }
+  }
+
+  // For filters that require joins (coach_id, class_id), use aggregation
+  if (coach_id || class_id) {
+    const pipeline = [
+      {
+        $lookup: {
+          from: 'classprograms',
+          localField: 'classProgramId',
+          foreignField: '_id',
+          as: 'classProgram'
+        }
+      },
+      {
+        $unwind: '$classProgram'
+      }
+    ];
+
+    const aggregateMatchConditions = { ...matchFilters };
+
+    if (coach_id) {
+      aggregateMatchConditions['classProgram.coach'] = toObjectId(coach_id);
+    }
+    if (class_id) {
+      aggregateMatchConditions['classProgram.class_id'] = toObjectId(class_id);
+    }
+
+    pipeline.push({ $match: aggregateMatchConditions });
+
+    // Add pagination
+    pipeline.push(
+      {
+        $facet: {
+          results: [
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'userId',
+                foreignField: '_id',
+                as: 'userId'
+              }
+            },
+            {
+              $unwind: {
+                path: '$userId',
+                preserveNullAndEmptyArrays: true
+              }
+            },
+            {
+              $lookup: {
+                from: 'transactions',
+                localField: 'transactionId',
+                foreignField: '_id',
+                as: 'transactionId'
+              }
+            },
+            {
+              $unwind: {
+                path: '$transactionId',
+                preserveNullAndEmptyArrays: true
+              }
+            },
+            {
+              $addFields: {
+                classProgramId: '$classProgram'
+              }
+            }
+          ],
+          totalCount: [{ $count: 'count' }]
+        }
+      }
+    );
+
+    const [result] = await CourseSessionOrderModel.aggregate(pipeline);
+    const totalResults = result.totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(totalResults / limit);
+
+    return {
+      results: result.results,
+      page,
+      limit,
+      totalPages,
+      totalResults,
+    };
+  }
+
+  // Use simple pagination for basic filters
+  const orders = await CourseSessionOrderModel.paginate(matchFilters, {
+    ...options,
+    populate: 'userId,classProgramId,transactionId',
+  });
+
+  return orders;
+};
+
 // checkout order
 const createCourseSessionOrder = async ({ requestBody, user }) => {
   const { courseSessionId, classProgramId, couponCodes, packages } = requestBody;
@@ -1742,6 +2100,8 @@ module.exports = {
   validateCheckoutCourseSessionOrder,
   getCourseSessionOrderById,
   retryCourseSessionOrder,
+  getAllOrdersOfProgramForAdmin,
+  __getAllOrdersOfProgramForAdmin,
   // Program Management
   getAllProgramsOfSpecificUser,
   getAllProgramsForAdmin,

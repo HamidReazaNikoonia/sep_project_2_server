@@ -37,6 +37,14 @@ router.route('/admin/program/:program_id/cancel-session/:session_id').post(auth(
 /**
  * ******************************
  */
+
+
+/**
+ * Program Orders
+ */
+router.route('/admin/program-orders').get(auth(), courseController.getAllOrdersOfProgramForAdmin);
+
+
 router.route('/admin/program/:userId').get(courseController.getAllProgramsOfSpecificUser);
 
 // router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE

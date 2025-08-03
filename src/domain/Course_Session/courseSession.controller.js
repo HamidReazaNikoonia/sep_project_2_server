@@ -163,6 +163,7 @@ const getAllProgramsForAdmin = catchAsync(async (req, res) => {
 
   const filter = pick(req.query, [
     'coach_id',
+    'program_id',
     'coach_full_name',
     'course_id',
     'course_title',
@@ -318,6 +319,43 @@ const getSpecificProgram = catchAsync(async (req, res) => {
   const { program_id } = req.params;
   const program = await courseSesshionService.getSpecificProgram(program_id);
   res.status(httpStatus.OK).send(program);
+});
+
+/**
+ * Program Orders
+ */
+
+const getAllOrdersOfProgramForAdmin = catchAsync(async (req, res) => {
+  if (!req?.user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
+  }
+
+  const filter = pick(req.query, [
+    'coach_id',
+    'course_id',
+    'program_id',
+    'class_id',
+    'user_id',
+    'order_status',
+    'payment_status',
+    'transaction_id',
+    'reference',
+    'is_have_package',
+    'with_coupon',
+    'with_discound',
+    'program_discounted',
+    'user_search',
+    'program_search',
+    'created_from_date',
+    'created_to_date',
+  ]);
+
+  console.log({ filter });
+  console.log('kire khar');
+
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+  const orders = await courseSesshionService.getAllOrdersOfProgramForAdmin(filter, options);
+  res.status(httpStatus.OK).send(orders);
 });
 
 /**
@@ -488,6 +526,7 @@ module.exports = {
   // Program
   getAllProgramsForAdmin,
   getSpecificProgram,
+  getAllOrdersOfProgramForAdmin,
   // checkout order
   createCourseSessionOrder,
   calculateOrderSummary,

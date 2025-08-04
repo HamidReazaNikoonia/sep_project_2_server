@@ -774,11 +774,41 @@ const createCourseSessionPackage = async (requestBody) => {
  *  Course Session Order Checkout
  */
 
-const __getAllOrdersOfProgramForAdmin = async () => {
-  const order = await CourseSessionOrderModel.find();
+const getOrdersOfProgramByIdForAdmin = async (order_id) => {
+  const order = await CourseSessionOrderModel.findById(order_id)
+    .populate({
+      path: 'userId',
+      populate: {
+        path: 'avatar'
+      }
+    })
+    .populate('transactionId')
+    .populate('packages')
+    .populate({
+      path: 'classProgramId',
+      populate: [
+        {
+          path: 'coach',
+          populate: {
+            path: 'avatar'
+          }
+        },
+        {
+          path: 'course'
+        }
+      ]
+    })
+    .populate({
+      path: 'appliedCoupons',
+      populate: {
+        path: 'couponId'
+      }
+    });
+
   if (!order) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
   }
+
   return order;
 };
 
@@ -972,7 +1002,7 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
         $facet: {
           results: [
             { $skip: (page - 1) * limit },
-            { $limit: 10 },
+            { $limit: limit },
             {
               $addFields: {
                 userId: '$user',
@@ -2101,7 +2131,7 @@ module.exports = {
   getCourseSessionOrderById,
   retryCourseSessionOrder,
   getAllOrdersOfProgramForAdmin,
-  __getAllOrdersOfProgramForAdmin,
+  getOrdersOfProgramByIdForAdmin,
   // Program Management
   getAllProgramsOfSpecificUser,
   getAllProgramsForAdmin,

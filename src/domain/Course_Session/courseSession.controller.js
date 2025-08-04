@@ -351,11 +351,17 @@ const getAllOrdersOfProgramForAdmin = catchAsync(async (req, res) => {
   ]);
 
   console.log({ filter });
-  console.log('kire khar');
+  console.log(' khar');
 
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const orders = await courseSesshionService.getAllOrdersOfProgramForAdmin(filter, options);
   res.status(httpStatus.OK).send(orders);
+});
+
+const getOrdersOfProgramByIdForAdmin = catchAsync(async (req, res) => {
+  const { order_id } = req.params;
+  const order = await courseSesshionService.getOrdersOfProgramByIdForAdmin(order_id);
+  res.status(httpStatus.OK).send(order);
 });
 
 /**
@@ -526,7 +532,9 @@ module.exports = {
   // Program
   getAllProgramsForAdmin,
   getSpecificProgram,
+  // Program Orders
   getAllOrdersOfProgramForAdmin,
+  getOrdersOfProgramByIdForAdmin,
   // checkout order
   createCourseSessionOrder,
   calculateOrderSummary,

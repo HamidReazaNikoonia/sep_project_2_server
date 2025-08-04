@@ -1309,6 +1309,19 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
   return { order: newOrder, transaction, payment };
 };
 
+// Update Order Status
+const updateOrderStatus = async (orderId, { status }) => {
+  const order = await CourseSessionOrderModel.findById(orderId);
+  if (!order) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+
+  order.orderStatus = status || 'pending';
+  await order.save();
+
+  return order;
+};
+
 /**
  * Calculate order summary with applied coupons
  * @param {ObjectId} userId
@@ -2132,6 +2145,7 @@ module.exports = {
   retryCourseSessionOrder,
   getAllOrdersOfProgramForAdmin,
   getOrdersOfProgramByIdForAdmin,
+  updateOrderStatus,
   // Program Management
   getAllProgramsOfSpecificUser,
   getAllProgramsForAdmin,

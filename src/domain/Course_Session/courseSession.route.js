@@ -42,7 +42,10 @@ router.route('/admin/program/:program_id/cancel-session/:session_id').post(auth(
  * Program Orders
  */
 router.route('/admin/program-orders').get(auth(), courseController.getAllOrdersOfProgramForAdmin);
-router.route('/admin/program-orders/:order_id').get(auth(), courseController.getOrdersOfProgramByIdForAdmin);
+router
+  .route('/admin/program-orders/:order_id')
+  .get(auth(), courseController.getOrdersOfProgramByIdForAdmin)
+  .patch(auth(), courseController.updateOrderStatus);
 
 router.route('/admin/program/:userId').get(courseController.getAllProgramsOfSpecificUser);
 

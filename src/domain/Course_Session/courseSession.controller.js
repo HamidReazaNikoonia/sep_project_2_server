@@ -364,6 +364,13 @@ const getOrdersOfProgramByIdForAdmin = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(order);
 });
 
+const updateOrderStatus = catchAsync(async (req, res) => {
+  const { order_id } = req.params;
+  const { order_status } = req.body;
+  const order = await courseSesshionService.updateOrderStatus(order_id, { status: order_status });
+  res.status(httpStatus.OK).send(order);
+});
+
 /**
  *   Course Session Order Checkout Process
  *
@@ -535,6 +542,7 @@ module.exports = {
   // Program Orders
   getAllOrdersOfProgramForAdmin,
   getOrdersOfProgramByIdForAdmin,
+  updateOrderStatus,
   // checkout order
   createCourseSessionOrder,
   calculateOrderSummary,

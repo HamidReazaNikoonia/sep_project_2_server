@@ -516,6 +516,13 @@ const cancelSessionById = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(session);
 });
 
+const implementNewSessionForClassProgram = catchAsync(async (req, res) => {
+  const { program_id } = req.params;
+  const { sessions } = req.body;
+  const session = await courseSesshionService.implementNewSessionForClassProgram({ programId: program_id, sessions });
+  res.status(httpStatus.OK).send(session);
+});
+
 module.exports = {
   // admin
   getAllCoursesSessionForAdmin,
@@ -539,6 +546,7 @@ module.exports = {
   // Program
   getAllProgramsForAdmin,
   getSpecificProgram,
+  implementNewSessionForClassProgram,
   // Program Orders
   getAllOrdersOfProgramForAdmin,
   getOrdersOfProgramByIdForAdmin,

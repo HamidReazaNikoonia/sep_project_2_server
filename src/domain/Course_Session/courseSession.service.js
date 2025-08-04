@@ -445,6 +445,57 @@ const createClassProgram = async ({
   return classProgram;
 };
 
+const implementNewSessionForClassProgram = async ({ programId, sessions }) => {
+  if (!sessions || sessions.length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Sessions are required');
+  }
+
+  const program = await classProgramModel.findById(programId);
+  if (!program) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Program not found');
+  }
+
+  // Validate all sessions for this coach
+  for (const session of sessions) {
+    const { date, startTime, endTime } = session;
+    // const gregorianDate = momentJalaali(date, 'jYYYY/jM/jD').format('YYYY-MM-DD');
+
+    // Check time order
+    if (startTime >= endTime) {
+      throw new ApiError(httpStatus.BAD_REQUEST, `End time must be after start time for session on ${date}`);
+    }
+
+    // Check coach availability
+    const isAvailable = await checkCoachAvailability(program?.coach, date, startTime, endTime);
+    if (!isAvailable) {
+      throw new ApiError(httpStatus.CONFLICT, `Coach has scheduling conflict on ${date} (${startTime}-${endTime})`);
+    }
+  }
+
+  const validatedSessions = sessions.map((session) => {
+    const { date, startTime, endTime } = session;
+
+    // Convert Jalaali date to Gregorian
+    const gregorianDate = momentJalaali(date, 'jYYYY/jM/jD').format('YYYY-MM-DD');
+
+    return {
+      date: gregorianDate,
+      startTime,
+      endTime,
+      status: 'scheduled',
+      ...(program?.program_type === 'ONLINE' ? { meetingLink: session.meetingLink } : { location: session.location }),
+    };
+  });
+
+  // Add new sessions to program
+  program.sessions.push(...validatedSessions);
+
+  // Save the updated program
+  await program.save();
+
+  return program;
+};
+
 const getAllProgramsOFSpecificCourse = async (courseId) => {
   // Find all class programs for the specified course
   const programs = await classProgramModel
@@ -2152,4 +2203,5 @@ module.exports = {
   getProgramMembers,
   completeSessionById,
   cancelSessionById,
+  implementNewSessionForClassProgram,
 };

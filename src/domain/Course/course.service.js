@@ -58,7 +58,7 @@ const getAllCoursesForAdmin = async ({ filter, options }) => {
 
   const courses = await Course.paginate(otherFilters, options);
 
-  return { data: courses };
+  return courses;
 };
 
 const getAllCourses = async ({ query }) => {

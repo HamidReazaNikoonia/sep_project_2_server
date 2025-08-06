@@ -277,7 +277,82 @@ const getAllCoursesSessionForAdmin = async ({ filter, options }) => {
 
   const courses = await CourseSession.paginate(otherFilters, options);
 
-  return { data: courses };
+  // If no courses found, return early
+  if (!courses.results || courses.results.length === 0) {
+    return courses;
+  }
+
+  // Extract course IDs from the results
+  const courseIds = courses.results.map((course) => course._id);
+
+  // Aggregate program counts by status for all courses
+  const programCounts = await classProgramModel.aggregate([
+    {
+      $match: {
+        course: { $in: courseIds },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          courseId: '$course',
+          status: '$status',
+        },
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $group: {
+        _id: '$_id.courseId',
+        statusCounts: {
+          $push: {
+            status: '$_id.status',
+            count: '$count',
+          },
+        },
+      },
+    },
+  ]);
+
+  // Create a map for quick lookup
+  const programCountsMap = {};
+  programCounts.forEach((item) => {
+    const courseId = item._id.toString();
+    const counts = {
+      active_program: 0,
+      inactive_program: 0,
+      completed_program: 0,
+    };
+
+    item.statusCounts.forEach((statusCount) => {
+      if (statusCount.status === 'active') {
+        counts.active_program = statusCount.count;
+      } else if (statusCount.status === 'inactive') {
+        counts.inactive_program = statusCount.count;
+      } else if (statusCount.status === 'completed') {
+        counts.completed_program = statusCount.count;
+      }
+    });
+
+    programCountsMap[courseId] = counts;
+  });
+
+  // Add program counts to each course
+  courses.results = courses.results.map((course) => {
+    const courseId = course._id.toString();
+    const _programCounts = programCountsMap[courseId] || {
+      active_program: 0,
+      inactive_program: 0,
+      completed_program: 0,
+    };
+
+    return {
+      ...course.toObject(), // Convert mongoose document to plain object
+      program_on_this_course: _programCounts,
+    };
+  });
+
+  return courses;
 };
 
 // Public
@@ -830,8 +905,8 @@ const getOrdersOfProgramByIdForAdmin = async (order_id) => {
     .populate({
       path: 'userId',
       populate: {
-        path: 'avatar'
-      }
+        path: 'avatar',
+      },
     })
     .populate('transactionId')
     .populate('packages')
@@ -841,19 +916,19 @@ const getOrdersOfProgramByIdForAdmin = async (order_id) => {
         {
           path: 'coach',
           populate: {
-            path: 'avatar'
-          }
+            path: 'avatar',
+          },
         },
         {
-          path: 'course'
-        }
-      ]
+          path: 'course',
+        },
+      ],
     })
     .populate({
       path: 'appliedCoupons',
       populate: {
-        path: 'couponId'
-      }
+        path: 'couponId',
+      },
     });
 
   if (!order) {
@@ -912,36 +987,36 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
           from: 'users',
           localField: 'userId',
           foreignField: '_id',
-          as: 'user'
-        }
+          as: 'user',
+        },
       },
       {
         $unwind: {
           path: '$user',
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $lookup: {
           from: 'classprograms',
           localField: 'classProgramId',
           foreignField: '_id',
-          as: 'classProgram'
-        }
+          as: 'classProgram',
+        },
       },
       {
         $unwind: {
           path: '$classProgram',
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $lookup: {
           from: 'users',
           localField: 'classProgramId.coach',
           foreignField: '_id',
-          as: 'coach'
-        }
+          as: 'coach',
+        },
       },
       // {
       //   $unwind: {
@@ -954,14 +1029,14 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
           from: 'course_sessions',
           localField: 'courseSessionId',
           foreignField: '_id',
-          as: 'courseSession'
-        }
+          as: 'courseSession',
+        },
       },
       {
         $unwind: {
           path: '$courseSession',
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       }
     );
 
@@ -1008,23 +1083,23 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
     if (is_have_package === 'true') {
       matchConditions.push({
         packages: { $exists: true, $ne: [] },
-        $expr: { $gt: [{ $size: '$packages' }, 0] }
+        $expr: { $gt: [{ $size: '$packages' }, 0] },
       });
     }
     if (with_coupon === 'true') {
       matchConditions.push({
         appliedCoupons: { $exists: true, $ne: [] },
-        $expr: { $gt: [{ $size: '$appliedCoupons' }, 0] }
+        $expr: { $gt: [{ $size: '$appliedCoupons' }, 0] },
       });
     }
     if (with_discound === 'true') {
       matchConditions.push({
-        total_discount: { $exists: true, $gt: 0 }
+        total_discount: { $exists: true, $gt: 0 },
       });
     }
     if (program_discounted === 'true') {
       matchConditions.push({
-        program_price_discounted: { $exists: true, $gt: 0 }
+        program_price_discounted: { $exists: true, $gt: 0 },
       });
     }
 
@@ -1043,29 +1118,27 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
     // Add match stage only if we have conditions
     if (matchConditions.length > 0) {
       pipeline.push({
-        $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions }
+        $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions },
       });
     }
 
     // Add pagination with proper field reconstruction
-    pipeline.push(
-      {
-        $facet: {
-          results: [
-            { $skip: (page - 1) * limit },
-            { $limit: limit },
-            {
-              $addFields: {
-                userId: '$user',
-                classProgramId: '$classProgram',
-                transactionId: '$transactionId'
-              }
-            }
-          ],
-          totalCount: [{ $count: 'count' }]
-        }
-      }
-    );
+    pipeline.push({
+      $facet: {
+        results: [
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+          {
+            $addFields: {
+              userId: '$user',
+              classProgramId: '$classProgram',
+              transactionId: '$transactionId',
+            },
+          },
+        ],
+        totalCount: [{ $count: 'count' }],
+      },
+    });
 
     // Execute aggregation
     const [result] = await CourseSessionOrderModel.aggregate(pipeline);
@@ -1126,12 +1199,12 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
           from: 'classprograms',
           localField: 'classProgramId',
           foreignField: '_id',
-          as: 'classProgram'
-        }
+          as: 'classProgram',
+        },
       },
       {
-        $unwind: '$classProgram'
-      }
+        $unwind: '$classProgram',
+      },
     ];
 
     const aggregateMatchConditions = { ...matchFilters };
@@ -1146,50 +1219,48 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
     pipeline.push({ $match: aggregateMatchConditions });
 
     // Add pagination
-    pipeline.push(
-      {
-        $facet: {
-          results: [
-            { $skip: (page - 1) * limit },
-            { $limit: limit },
-            {
-              $lookup: {
-                from: 'users',
-                localField: 'userId',
-                foreignField: '_id',
-                as: 'userId'
-              }
+    pipeline.push({
+      $facet: {
+        results: [
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'userId',
+              foreignField: '_id',
+              as: 'userId',
             },
-            {
-              $unwind: {
-                path: '$userId',
-                preserveNullAndEmptyArrays: true
-              }
+          },
+          {
+            $unwind: {
+              path: '$userId',
+              preserveNullAndEmptyArrays: true,
             },
-            {
-              $lookup: {
-                from: 'transactions',
-                localField: 'transactionId',
-                foreignField: '_id',
-                as: 'transactionId'
-              }
+          },
+          {
+            $lookup: {
+              from: 'transactions',
+              localField: 'transactionId',
+              foreignField: '_id',
+              as: 'transactionId',
             },
-            {
-              $unwind: {
-                path: '$transactionId',
-                preserveNullAndEmptyArrays: true
-              }
+          },
+          {
+            $unwind: {
+              path: '$transactionId',
+              preserveNullAndEmptyArrays: true,
             },
-            {
-              $addFields: {
-                classProgramId: '$classProgram'
-              }
-            }
-          ],
-          totalCount: [{ $count: 'count' }]
-        }
-      }
-    );
+          },
+          {
+            $addFields: {
+              classProgramId: '$classProgram',
+            },
+          },
+        ],
+        totalCount: [{ $count: 'count' }],
+      },
+    });
 
     const [result] = await CourseSessionOrderModel.aggregate(pipeline);
     const totalResults = result.totalCount[0]?.count || 0;

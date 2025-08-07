@@ -39,6 +39,8 @@ const couponCodeRoute = require('../../domain/CouponCodes/couponCodes.route');
 // Site Info
 const siteInfoRoutes = require('../../domain/SiteInfo/siteInfo.route');
 
+const notificationRoute = require('../../domain/Notification/notification.route');
+
 const router = express.Router();
 
 const defaultRoutes = [
@@ -125,6 +127,10 @@ const defaultRoutes = [
   {
     path: '/site-info',
     route: siteInfoRoutes,
+  },
+  {
+    path: '/notification',
+    route: notificationRoute,
   },
 ];
 

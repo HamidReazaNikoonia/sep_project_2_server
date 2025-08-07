@@ -36,6 +36,36 @@ const queryNotifications = async (filter, options) => {
   // Handle special filters
   const mongoFilter = { ...filter };
 
+  // Handle search filter for customer information
+  if (filter.search) {
+    const searchTerm = filter.search.trim();
+    if (searchTerm) {
+      // Create search query for user fields
+      const userSearchQuery = {
+        $or: [
+          { first_name: { $regex: searchTerm, $options: 'i' } },
+          { last_name: { $regex: searchTerm, $options: 'i' } },
+          { mobile: { $regex: searchTerm, $options: 'i' } },
+          { student_id: { $regex: searchTerm, $options: 'i' } },
+          { nationalId: { $regex: searchTerm, $options: 'i' } },
+        ],
+      };
+
+      // Find matching users
+      const matchingUsers = await User.find(userSearchQuery, '_id');
+      const userIds = matchingUsers.map((user) => user._id);
+
+      // Filter notifications by matching customer IDs
+      if (userIds.length > 0) {
+        mongoFilter.customer = { $in: userIds };
+      } else {
+        // If no users match the search, return empty result
+        mongoFilter.customer = { $in: [] };
+      }
+    }
+    delete mongoFilter.search;
+  }
+
   // Handle is_expired filter
   if (filter.is_expired !== undefined) {
     if (filter.is_expired === true || filter.is_expired === 'true') {

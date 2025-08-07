@@ -12,6 +12,7 @@ const createNotification = catchAsync(async (req, res) => {
 const getNotifications = catchAsync(async (req, res) => {
   const filter = pick(req.query, [
     'customer',
+    'search',
     'notification_type',
     'status',
     'read_status',
@@ -38,6 +39,7 @@ const getNotifications = catchAsync(async (req, res) => {
 const getAllNotifications = catchAsync(async (req, res) => {
   const filter = pick(req.query, [
     'customer',
+    'search',
     'notification_type',
     'status',
     'read_status',

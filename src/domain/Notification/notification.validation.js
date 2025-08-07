@@ -69,6 +69,7 @@ const getNotifications = {
     sortBy: Joi.string(),
     limit: Joi.number().integer(),
     page: Joi.number().integer(),
+    search: Joi.string(),
   }),
 };
 
@@ -87,6 +88,8 @@ const getAllNotifications = {
     sortBy: Joi.string(),
     limit: Joi.number().integer(),
     page: Joi.number().integer(),
+    search: Joi.string(),
+    q: Joi.string(),
   }),
 };
 

@@ -41,8 +41,8 @@ router
 // Admin routes
 router
   .route('/admin/all')
-  .get(auth('admin'), validate(notificationValidation.getAllNotifications), notificationController.getAllNotifications);
+  .get(auth(), validate(notificationValidation.getAllNotifications), notificationController.getAllNotifications);
 
-router.route('/admin/analytics').get(auth('admin'), notificationController.getAnalytics);
+router.route('/admin/analytics').get(auth(), notificationController.getAnalytics);
 
 module.exports = router;

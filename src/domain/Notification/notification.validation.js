@@ -70,6 +70,8 @@ const getNotifications = {
     limit: Joi.number().integer(),
     page: Joi.number().integer(),
     search: Joi.string(),
+    created_from_date: Joi.date(),
+    created_to_date: Joi.date(),
   }),
 };
 
@@ -90,6 +92,8 @@ const getAllNotifications = {
     page: Joi.number().integer(),
     search: Joi.string(),
     q: Joi.string(),
+    created_from_date: Joi.date(),
+    created_to_date: Joi.date(),
   }),
 };
 

@@ -88,15 +88,15 @@ const queryNotifications = async (filter, options) => {
   }
 
   // Handle date range filters
-  if (filter.created_from || filter.created_to) {
+  if (filter.created_from_date || filter.created_to_date) {
     mongoFilter.createdAt = {};
-    if (filter.created_from) {
-      mongoFilter.createdAt.$gte = new Date(filter.created_from);
-      delete mongoFilter.created_from;
+    if (filter.created_from_date) {
+      mongoFilter.createdAt.$gte = new Date(filter.created_from_date);
+      delete mongoFilter.created_from_date;
     }
-    if (filter.created_to) {
-      mongoFilter.createdAt.$lte = new Date(filter.created_to);
-      delete mongoFilter.created_to;
+    if (filter.created_to_date) {
+      mongoFilter.createdAt.$lte = new Date(filter.created_to_date);
+      delete mongoFilter.created_to_date;
     }
   }
 

@@ -24,6 +24,8 @@ const getNotifications = catchAsync(async (req, res) => {
     'campaign_id',
     'created_from',
     'created_to',
+    'created_from_date',
+    'created_to_date',
   ]);
 
   // If not admin, filter by current user
@@ -42,6 +44,7 @@ const getAllNotifications = catchAsync(async (req, res) => {
     'search',
     'notification_type',
     'status',
+    'is_read_by_admin',
     'read_status',
     'priority',
     'deleted',
@@ -49,6 +52,8 @@ const getAllNotifications = catchAsync(async (req, res) => {
     'campaign_id',
     'created_from',
     'created_to',
+    'created_from_date',
+    'created_to_date',
   ]);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await notificationService.queryNotifications(filter, options);

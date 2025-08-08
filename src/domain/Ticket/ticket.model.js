@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('../../models/plugins');
+const User = require('../../models/user.model');
 
 const { Schema } = mongoose;
 
@@ -240,7 +241,7 @@ ticketSchema.pre('save', function (next) {
 });
 
 // Static method to get tickets with filters
-ticketSchema.statics.findWithFilters = function (filters = {}, options = {}) {
+ticketSchema.statics.findWithFilters = async function (filters = {}, options = {}) {
   const query = { is_deleted: false };
 
   // Apply filters
@@ -261,7 +262,32 @@ ticketSchema.statics.findWithFilters = function (filters = {}, options = {}) {
     if (filters.created_to_date) query.createdAt.$lte = new Date(filters.created_to_date);
   }
 
-  return this.paginate(query, options);
+  // Handle search filter (search in ticket fields and user fields)
+  if (filters.search) {
+    const searchTerm = filters.search.trim();
+    if (searchTerm) {
+      // First, find users that match the search criteria
+      const userSearchQuery = {
+        $or: [{ first_name: { $regex: searchTerm, $options: 'i' } }, { last_name: { $regex: searchTerm, $options: 'i' } }],
+      };
+
+      const matchingUsers = await User.find(userSearchQuery, '_id');
+      const userIds = matchingUsers.map((user) => user._id);
+
+      // Create search query that includes both ticket fields and user matches
+      query.$or = [{ title: { $regex: searchTerm, $options: 'i' } }, { description: { $regex: searchTerm, $options: 'i' } }];
+
+      // If we found matching users, add them to the search
+      if (userIds.length > 0) {
+        query.$or.push({ user: { $in: userIds } });
+      }
+    }
+  }
+
+  return this.paginate(query, {
+    ...options,
+    populate: 'user assigned_to',
+  });
 };
 
 const Ticket = mongoose.model('Ticket', ticketSchema);

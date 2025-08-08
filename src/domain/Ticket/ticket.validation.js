@@ -56,6 +56,9 @@ const getTickets = {
     sortBy: Joi.string().optional(),
     limit: Joi.number().integer().min(1).max(100).optional(),
     page: Joi.number().integer().min(1).optional(),
+    search: Joi.string().optional(),
+    q: Joi.string().optional(),
+    sort_by: Joi.string().optional(),
   }),
 };
 

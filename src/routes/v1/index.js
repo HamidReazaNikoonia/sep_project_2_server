@@ -39,7 +39,11 @@ const couponCodeRoute = require('../../domain/CouponCodes/couponCodes.route');
 // Site Info
 const siteInfoRoutes = require('../../domain/SiteInfo/siteInfo.route');
 
+// Notification Routes
 const notificationRoute = require('../../domain/Notification/notification.route');
+
+// Tickets Routes
+const ticketRoute = require('../../domain/Ticket/ticket.route');
 
 const router = express.Router();
 
@@ -131,6 +135,10 @@ const defaultRoutes = [
   {
     path: '/notification',
     route: notificationRoute,
+  },
+  {
+    path: '/ticket',
+    route: ticketRoute,
   },
 ];
 

@@ -22,6 +22,9 @@ const getTickets = catchAsync(async (req, res) => {
     'is_read_by_admin',
     'created_from_date',
     'created_to_date',
+    'search',
+    'sort_by',
+    'q',
   ]);
 
   const options = pick(req.query, ['sortBy', 'limit', 'page']);

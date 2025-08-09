@@ -11,7 +11,7 @@ const categorySchema = mongoose.Schema(
     },
     parent: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Category',
+      ref: 'Course_Session_Category',
       default: null,
     },
     path: {

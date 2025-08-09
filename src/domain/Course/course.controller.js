@@ -16,7 +16,7 @@ const getAllCoursesForAdmin = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'User Not Exist');
   }
 
-  const filter = pick(req.query, ['title', 'subtitle', 'q', '_id']);
+  const filter = pick(req.query, ['title', 'subtitle', 'q', '_id', 'price_from', 'price_to']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
 
   const courses = await courseService.getAllCoursesForAdmin({ filter, options });

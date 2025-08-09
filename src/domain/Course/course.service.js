@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 /* eslint-disable no-return-await */
 const path = require('node:path');
 const fs = require('node:fs');
@@ -47,13 +48,24 @@ const applyForCourse = async ({ courseId, userId }) => {
 // ADMIN SERVICES
 
 const getAllCoursesForAdmin = async ({ filter, options }) => {
-  const { q, ...otherFilters } = filter;
+  const { q, price_from, price_to, ...otherFilters } = filter;
 
   // If there's a search query, create a search condition
   if (q) {
     // eslint-disable-next-line security/detect-non-literal-regexp
     const searchRegex = new RegExp(q, 'i'); // Case-insensitive search
     otherFilters.$or = [{ title: searchRegex }, { sub_title: searchRegex }, { description: searchRegex }];
+  }
+
+  // Handle price range filtering
+  if (price_from || price_to) {
+    otherFilters.price_real = {};
+    if (price_from) {
+      otherFilters.price_real.$gte = Number(price_from);
+    }
+    if (price_to) {
+      otherFilters.price_real.$lte = Number(price_to);
+    }
   }
 
   const courses = await Course.paginate(otherFilters, options);
@@ -65,8 +77,7 @@ const getAllCourses = async ({ query }) => {
   const features = new APIFeatures(Course.find({ course_status: true }), query)
     .filter()
     .search()
-    // .priceRange() // Apply the price range filter
-    // .sort()
+    .priceRange() // Enable the price range filter
     .dateFilter()
     .limitFields()
     .paginate();
@@ -76,10 +87,15 @@ const getAllCourses = async ({ query }) => {
     .filter()
     .search()
     .dateFilter()
-    // .priceRange() // Apply the price range filter
+    .priceRange() // Enable the price range filter
     .count().total;
 
-  return { data: { total, count: courses.length, courses } };
+  return {
+    courses,
+    total,
+    totalPages: Math.ceil(total / (query.limit || 10)),
+    currentPage: query.page || 1,
+  };
 };
 
 const getCourseBySlugOrId = async (identifier) => {

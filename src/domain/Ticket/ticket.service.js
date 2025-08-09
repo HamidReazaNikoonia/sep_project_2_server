@@ -63,7 +63,22 @@ const queryTickets = async (filter, options) => {
  * @returns {Promise<Ticket>}
  */
 const getTicketById = async (id, userRole = 'user', userId = null) => {
-  const ticket = await Ticket.findById(id).populate('replies.sender', 'first_name last_name role');
+  const ticket = await Ticket.findById(id)
+    .populate('assigned_to', 'first_name last_name avatar mobile id role')
+    .populate('user', 'first_name last_name avatar mobile id student_id role')
+    .populate('attachments')
+    .populate('program_id', 'id')
+    .populate('resolved_by')
+    .populate('deleted_by')
+    .populate({
+      path: 'program_id',
+      populate: [
+        { path: 'course', select: 'title' },
+        { path: 'coach', select: 'first_name last_name mobile' },
+      ],
+    })
+    .populate('replies.sender')
+    .populate('replies.attachments');
 
   if (!ticket || ticket.is_deleted) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Ticket not found');

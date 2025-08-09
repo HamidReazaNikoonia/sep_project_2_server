@@ -153,7 +153,8 @@ courseSessionSchema.index({ title: 'text', sub_title: 'text' });
 courseSessionSchema.pre('save', async function (next) {
   const course = this;
 
-  if (course.isNew && course.sample_media) {
+  // Check if sample_media exists and either it's a new document or sample_media has been modified
+  if (course.sample_media && (course.isNew || course.isModified('sample_media'))) {
     for (const media of course.sample_media) {
       if (media.file) {
         // Fetch the Upload document by its ObjectId

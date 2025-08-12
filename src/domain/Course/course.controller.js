@@ -24,7 +24,7 @@ const getAllCoursesForAdmin = catchAsync(async (req, res) => {
 });
 
 const getAllCourses = catchAsync(async (req, res) => {
-  const courses = await courseService.getAllCourses({query: req.query});
+  const courses = await courseService.getAllCourses({ query: req.query });
   res.status(httpStatus.OK).send(courses);
 });
 

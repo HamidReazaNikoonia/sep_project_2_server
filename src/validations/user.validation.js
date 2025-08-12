@@ -42,6 +42,7 @@ const getUsers = {
     limit: Joi.number().integer(),
     page: Joi.number().integer(),
     q: Joi.string(),
+    search: Joi.string(),
     isVerified: Joi.string(),
     have_enrolled_course_session: Joi.string(),
     have_wallet_amount: Joi.string(),

@@ -125,6 +125,7 @@ const seedCourses = async () => {
 
     const courses = [];
 
+    // eslint-disable-next-line no-plusplus
     for (let i = 0; i < 30; i++) {
       const title = randomItem(fakeTitles);
       const sub_title = randomItem(fakeSubTitles);

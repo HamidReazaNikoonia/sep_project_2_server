@@ -357,24 +357,99 @@ const getAllCoursesSessionForAdmin = async ({ filter, options }) => {
 
 // Public
 const getAllCourses = async ({ query }) => {
-  const features = new APIFeatures(CourseSession.find({ course_status: true }), query)
-    .filter()
-    .search()
-    .priceRange() // Apply the price range filter
-    .sort()
-    .dateFilter()
-    .limitFields()
-    .paginate();
+  // const { q, price_from, price_to, sortBy, limit, page } = query;
 
-  const courses = await features.query;
-  const total = await new APIFeatures(CourseSession.find({ course_status: true }), query)
-    .filter()
-    .search()
-    .dateFilter()
-    .priceRange() // Apply the price range filter
-    .count().total;
+  // Build the filter object
+  const filter = { course_status: true };
 
-  return { data: { total, count: courses.length, courses } };
+  // Extract pagination options
+  const options = {
+    limit: query.limit ? parseInt(query.limit, 10) : 10,
+    page: query.page ? parseInt(query.page, 10) : 1,
+    sortBy: query.sortBy || 'createdAt:desc',
+    populate: 'tumbnail,course_session_category',
+  };
+
+  // * Search filter (q) - search in title and sub_title
+  if (query.q && query.q.trim()) {
+    // eslint-disable-next-line security/detect-non-literal-regexp
+    const searchRegex = new RegExp(query.q.trim(), 'i');
+    filter.$or = [{ title: searchRegex }, { sub_title: searchRegex }];
+  }
+
+  // * Course category filter
+  if (query.course_session_category) {
+    if (Array.isArray(query.course_session_category)) {
+      filter.course_session_category = { $in: query.course_session_category };
+    } else {
+      filter.course_session_category = query.course_session_category;
+    }
+  }
+
+  // * Price range filter with simplified logic
+  //  if (query.price_from || query.price_to) {
+  //   const priceConditions = [];
+
+  //   // Condition for fire sale courses (use price_discount)
+  //   const fireSaleCondition = {
+  //     is_fire_sale: true,
+  //     price_discount: { $exists: true, $ne: null },
+  //   };
+
+  //   // Condition for regular courses (use price_real)
+  //   const regularCondition = {
+  //     $or: [{ is_fire_sale: { $ne: true } }, { price_discount: { $exists: false } }, { price_discount: null }],
+  //   };
+
+  //   if (query.price_from) {
+  //     const minPrice = Number(query.price_from);
+
+  //     priceConditions.push({
+  //       $or: [
+  //         // Fire sale courses with discount >= minPrice
+  //         {
+  //           ...fireSaleCondition,
+  //           price_discount: { $gte: minPrice },
+  //         },
+  //         // Regular courses with price_real >= minPrice
+  //         {
+  //           ...regularCondition,
+  //           price_real: { $gte: minPrice },
+  //         },
+  //       ],
+  //     });
+  //   }
+
+  //   if (query.price_to) {
+  //     const maxPrice = Number(query.price_to);
+
+  //     priceConditions.push({
+  //       $or: [
+  //         // Fire sale courses with discount <= maxPrice
+  //         {
+  //           ...fireSaleCondition,
+  //           price_discount: { $lte: maxPrice },
+  //         },
+  //         // Regular courses with price_real <= maxPrice
+  //         {
+  //           ...regularCondition,
+  //           price_real: { $lte: maxPrice },
+  //         },
+  //       ],
+  //     });
+  //   }
+
+  //   // Combine all price conditions
+  //   if (priceConditions.length > 0) {
+  //     otherFilters.$and = (otherFilters.$and || []).concat(priceConditions);
+  //   }
+  // }
+
+  // console.log(otherFilters);
+
+  const courses = await CourseSession.paginate(filter, options);
+
+  return courses;
 };
 
 const getCourseBySlugOrId = async (identifier) => {
@@ -1084,7 +1159,7 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
     if (order_status) matchConditions.push({ orderStatus: order_status });
     if (payment_status) matchConditions.push({ paymentStatus: payment_status });
     if (transaction_id) matchConditions.push({ transactionId: toObjectId(transaction_id) });
-    if (reference) matchConditions.push({ reference: reference });
+    if (reference) matchConditions.push({ reference });
 
     // Array/field existence checks
     if (is_have_package === 'true') {
@@ -1491,8 +1566,8 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
   console.log('totalPackagePrice', totalPackagePrice);
 
   const originalAmount = courseSessionclassProgram.price_discounted || courseSessionclassProgram.price_real;
-  let validCoupons = [];
-  let invalidCoupons = [];
+  const validCoupons = [];
+  const invalidCoupons = [];
   let totalDiscount = 0;
 
   // Process each coupon code

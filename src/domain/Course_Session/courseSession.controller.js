@@ -156,6 +156,34 @@ const assignClassProgram = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(classProgram);
 });
 
+const getAllProgramsForUser = catchAsync(async (req, res) => {
+  const filter = pick(req.query, [
+    'coach_id',
+    'date_begin',
+    'program_id',
+    'coach_full_name',
+    'course_id',
+    'course_title',
+    'class_id',
+    'is_fire_sale',
+    'mobile',
+    'program_type',
+    'have_members',
+    'coach_is_valid',
+    'status',
+    'q',
+    'created_from_date',
+    'created_to_date',
+    'is_have_capacity',
+    'is_have_capacity_in_progress',
+    'is_have_min_capacity',
+  ]);
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+
+  const programs = await courseSesshionService.getAllProgramsForUser(filter, options);
+  res.status(httpStatus.OK).send(programs);
+});
+
 const getAllProgramsForAdmin = catchAsync(async (req, res) => {
   if (!req?.user) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized');
@@ -544,6 +572,7 @@ module.exports = {
   getAllCourseSessionPackage,
   createCourseSessionPackage,
   // Program
+  getAllProgramsForUser,
   getAllProgramsForAdmin,
   getSpecificProgram,
   implementNewSessionForClassProgram,

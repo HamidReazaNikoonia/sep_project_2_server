@@ -146,11 +146,26 @@ const courseSchema = new Schema(
     course_objects: [
       {
         subject_title: String,
-        status: {
-          type: String,
-          enum: ['PUBLIC', 'PRIVATE'],
-          default: 'PRIVATE',
-        },
+        description: String,
+        order: Number,
+        lessons: [
+          {
+            title: String,
+            description: String,
+            order: Number,
+            status: {
+              type: String,
+              enum: ['PUBLIC', 'PRIVATE'],
+              default: 'PRIVATE',
+            },
+            duration: Number, // minute
+            file: {
+              type: Schema.Types.ObjectId,
+              ref: 'Upload',
+              autopopulate: true,
+            },
+          },
+        ],
         duration: Number, // minute
         files: {
           type: Schema.Types.ObjectId,

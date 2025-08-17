@@ -68,6 +68,8 @@ router.post('/category', categoryController.createCategory);
 router.get('/category/tree', categoryController.getCategoryTree);
 router.get('/category/:id', categoryController.getCategoryById);
 
+// Get All Program For user
+router.route('/program').get(courseController.getAllProgramsForUser);
 // get Specific course-session Program by id
 router.get('/program/:program_id', courseController.getSpecificProgram);
 // /// ///////

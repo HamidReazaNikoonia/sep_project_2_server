@@ -357,99 +357,203 @@ const getAllCoursesSessionForAdmin = async ({ filter, options }) => {
 
 // Public
 const getAllCourses = async ({ query }) => {
-  // const { q, price_from, price_to, sortBy, limit, page } = query;
-
-  // Build the filter object
-  const filter = { course_status: true };
+  // Build the base match stage for CourseSession
+  const courseSessionMatch = { course_status: true };
 
   // Extract pagination options
   const options = {
     limit: query.limit ? parseInt(query.limit, 10) : 10,
     page: query.page ? parseInt(query.page, 10) : 1,
     sortBy: query.sortBy || 'createdAt:desc',
-    populate: 'tumbnail,course_session_category',
   };
 
   // * Search filter (q) - search in title and sub_title
   if (query.q && query.q.trim()) {
-    // eslint-disable-next-line security/detect-non-literal-regexp
     const searchRegex = new RegExp(query.q.trim(), 'i');
-    filter.$or = [{ title: searchRegex }, { sub_title: searchRegex }];
+    courseSessionMatch.$or = [{ title: searchRegex }, { sub_title: searchRegex }];
   }
 
   // * Course category filter
   if (query.course_session_category) {
     if (Array.isArray(query.course_session_category)) {
-      filter.course_session_category = { $in: query.course_session_category };
+      courseSessionMatch.course_session_category = { $in: query.course_session_category };
     } else {
-      filter.course_session_category = query.course_session_category;
+      courseSessionMatch.course_session_category = query.course_session_category;
     }
   }
 
-  // * Price range filter with simplified logic
-  //  if (query.price_from || query.price_to) {
-  //   const priceConditions = [];
+  // Build aggregation pipeline
+  const pipeline = [
+    // Match CourseSession documents
+    { $match: courseSessionMatch },
 
-  //   // Condition for fire sale courses (use price_discount)
-  //   const fireSaleCondition = {
-  //     is_fire_sale: true,
-  //     price_discount: { $exists: true, $ne: null },
-  //   };
+    // Lookup active programs for each course
+    {
+      $lookup: {
+        from: 'classprograms', // Assuming the collection name is classprograms
+        let: { courseId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$course', '$$courseId'] },
+                  { $eq: ['$status', 'active'] }
+                ]
+              }
+            }
+          },
+          // Populate coach details
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'coach',
+              foreignField: '_id',
+              as: 'coach_details'
+            }
+          },
+          {
+            $unwind: {
+              path: '$coach_details',
+              preserveNullAndEmptyArrays: true
+            }
+          },
+          // Populate coach avatar
+          {
+            $lookup: {
+              from: 'uploads',
+              localField: 'coach_details.avatar',
+              foreignField: '_id',
+              as: 'coach_avatar'
+            }
+          },
+          {
+            $unwind: {
+              path: '$coach_avatar',
+              preserveNullAndEmptyArrays: true
+            }
+          },
+          // Project the required fields for active_program
+          {
+            $project: {
+              program_id: '$_id',
+              coach: {
+                _id: '$coach_details._id',
+                first_name: '$coach_details.first_name',
+                last_name: '$coach_details.last_name',
+                avatar: '$coach_avatar.file_name',
+              },
+              program_price: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$is_fire_sale', true] },
+                      { $ne: ['$price_discounted', null] },
+                      { $gt: ['$price_discounted', 0] }
+                    ]
+                  },
+                  then: '$price_discounted',
+                  else: '$price_real'
+                }
+              },
+              is_fire_sale: 1,
+              program_type: 1,
+              is_have_member: {
+                $lt: ['$max_member_accept', { $size: { $ifNull: ['$members', []] } }]
+              }
+            }
+          }
+        ],
+        as: 'active_programs'
+      }
+    },
 
-  //   // Condition for regular courses (use price_real)
-  //   const regularCondition = {
-  //     $or: [{ is_fire_sale: { $ne: true } }, { price_discount: { $exists: false } }, { price_discount: null }],
-  //   };
+    // Add active_program field to the response
+    {
+      $addFields: {
+        active_program: '$active_programs'
+      }
+    },
 
-  //   if (query.price_from) {
-  //     const minPrice = Number(query.price_from);
+    // Filter by is_have_active_program if requested
+    ...(query.is_have_active_program === 'true' ? [
+      {
+        $match: {
+          'active_programs.0': { $exists: true } // Has at least one active program
+        }
+      }
+    ] : []),
 
-  //     priceConditions.push({
-  //       $or: [
-  //         // Fire sale courses with discount >= minPrice
-  //         {
-  //           ...fireSaleCondition,
-  //           price_discount: { $gte: minPrice },
-  //         },
-  //         // Regular courses with price_real >= minPrice
-  //         {
-  //           ...regularCondition,
-  //           price_real: { $gte: minPrice },
-  //         },
-  //       ],
-  //     });
-  //   }
+    // Lookup for tumbnail
+    {
+      $lookup: {
+        from: 'uploads',
+        localField: 'tumbnail',
+        foreignField: '_id',
+        as: 'tumbnail'
+      }
+    },
+    {
+      $unwind: {
+        path: '$tumbnail',
+        preserveNullAndEmptyArrays: true
+      }
+    },
 
-  //   if (query.price_to) {
-  //     const maxPrice = Number(query.price_to);
+    // Lookup for course_session_category
+    {
+      $lookup: {
+        from: 'course_session_categories', // Adjust collection name as needed
+        localField: 'course_session_category',
+        foreignField: '_id',
+        as: 'course_session_category'
+      }
+    },
 
-  //     priceConditions.push({
-  //       $or: [
-  //         // Fire sale courses with discount <= maxPrice
-  //         {
-  //           ...fireSaleCondition,
-  //           price_discount: { $lte: maxPrice },
-  //         },
-  //         // Regular courses with price_real <= maxPrice
-  //         {
-  //           ...regularCondition,
-  //           price_real: { $lte: maxPrice },
-  //         },
-  //       ],
-  //     });
-  //   }
+    // Remove the temporary active_programs field
+    {
+      $project: {
+        active_programs: 0
+      }
+    }
+  ];
 
-  //   // Combine all price conditions
-  //   if (priceConditions.length > 0) {
-  //     otherFilters.$and = (otherFilters.$and || []).concat(priceConditions);
-  //   }
-  // }
+  // Get total count
+  const totalPipeline = [
+    ...pipeline.slice(0, -1), // Remove the final projection
+    { $count: 'total' }
+  ];
 
-  // console.log(otherFilters);
+  const totalResult = await CourseSession.aggregate(totalPipeline);
+  const total = totalResult[0]?.total || 0;
 
-  const courses = await CourseSession.paginate(filter, options);
+  // Add sorting
+  const sortOptions = {};
+  if (options.sortBy) {
+    const [field, order] = options.sortBy.split(':');
+    sortOptions[field] = order === 'desc' ? -1 : 1;
+  } else {
+    sortOptions.createdAt = -1;
+  }
+  pipeline.push({ $sort: sortOptions });
 
-  return courses;
+  // Add pagination
+  const skip = (options.page - 1) * options.limit;
+  pipeline.push(
+    { $skip: skip },
+    { $limit: options.limit }
+  );
+
+  // Execute aggregation
+  const courses = await CourseSession.aggregate(pipeline);
+
+  return {
+    results: courses,
+    page: options.page,
+    limit: options.limit,
+    totalPages: Math.ceil(total / options.limit),
+    totalResults: total
+  };
 };
 
 const getCourseBySlugOrId = async (identifier) => {
@@ -1914,6 +2018,91 @@ const retryCourseSessionOrder = async ({ orderId, user }) => {
 };
 
 // Program
+
+
+const getAllProgramsForUser = async (filter, options) => {
+
+
+  const { page = 1, limit = 10 } = options;
+  const { q, date_begin } = filter;
+
+  const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
+  // Build search conditions
+  const searchConditions = [];
+
+  if (q) {
+    searchConditions.push(
+      { 'course.title': { $regex: q, $options: 'i' } },
+      { 'course.sub_title': { $regex: q, $options: 'i' } },
+      { 'coach.first_name': { $regex: q, $options: 'i' } },
+      { 'coach.last_name': { $regex: q, $options: 'i' } }
+    );
+  }
+
+  // Aggregation pipeline
+  const pipeline = [
+    {
+      $lookup: {
+        from: 'course_sessions', // MongoDB collection name (usually pluralized)
+        localField: 'course',
+        foreignField: '_id',
+        as: 'course',
+      },
+    },
+    {
+      $unwind: '$course',
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'coach',
+        foreignField: '_id',
+        as: 'coach',
+      },
+    },
+    {
+      $unwind: '$coach',
+    },
+    {
+      $match: searchConditions.length > 0 ? { $or: searchConditions } : {},
+    },
+    {
+      $facet: {
+        metadata: [
+          { $count: 'totalResults' },
+          {
+            $addFields: {
+              page: Number(page),
+              limit: Number(limit),
+              totalPages: {
+                $ceil: { $divide: ['$totalResults', limit] },
+              },
+            },
+          },
+        ],
+        data: [{ $skip: Number(skip) }, { $limit: Number(limit) }],
+      },
+    },
+  ];
+
+  const result = await classProgramModel.aggregate(pipeline);
+
+  const metadata = result[0]?.metadata[0] || {
+    totalResults: 0,
+    page,
+    limit,
+    totalPages: 0,
+  };
+
+  const results = result[0]?.data || [];
+
+  return {
+    ...metadata,
+    results,
+  };
+};
+
 const getAllProgramsForAdmin = async (filter, options) => {
   const {
     q,
@@ -2352,6 +2541,7 @@ module.exports = {
   updateOrderStatus,
   // Program Management
   getAllProgramsOfSpecificUser,
+  getAllProgramsForUser,
   getAllProgramsForAdmin,
   getProgramMembers,
   completeSessionById,

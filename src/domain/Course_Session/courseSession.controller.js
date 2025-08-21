@@ -177,6 +177,12 @@ const getAllProgramsForUser = catchAsync(async (req, res) => {
     'is_have_capacity',
     'is_have_capacity_in_progress',
     'is_have_min_capacity',
+    'packages',
+    'course_category',
+    'is_program_full_member',
+    'price_from',
+    'price_to',
+    'is_have_licence',
   ]);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
 

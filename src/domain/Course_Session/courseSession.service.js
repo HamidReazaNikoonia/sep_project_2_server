@@ -12,6 +12,7 @@ const { CourseSession, CourseSessionCategory, CourseSessionSubCategory } = requi
 const APIFeatures = require('../../utils/APIFeatures');
 const ZarinpalCheckout = require('../../services/payment');
 const config = require('../../config/config');
+const queryParamsStringToArray = require('../../utils/queryParamsStringToArray');
 
 // Models
 const Coach = require('../Coach/coach.model');
@@ -396,12 +397,9 @@ const getAllCourses = async ({ query }) => {
           {
             $match: {
               $expr: {
-                $and: [
-                  { $eq: ['$course', '$$courseId'] },
-                  { $eq: ['$status', 'active'] }
-                ]
-              }
-            }
+                $and: [{ $eq: ['$course', '$$courseId'] }, { $eq: ['$status', 'active'] }],
+              },
+            },
           },
           // Populate coach details
           {
@@ -409,14 +407,14 @@ const getAllCourses = async ({ query }) => {
               from: 'users',
               localField: 'coach',
               foreignField: '_id',
-              as: 'coach_details'
-            }
+              as: 'coach_details',
+            },
           },
           {
             $unwind: {
               path: '$coach_details',
-              preserveNullAndEmptyArrays: true
-            }
+              preserveNullAndEmptyArrays: true,
+            },
           },
           // Populate coach avatar
           {
@@ -424,14 +422,14 @@ const getAllCourses = async ({ query }) => {
               from: 'uploads',
               localField: 'coach_details.avatar',
               foreignField: '_id',
-              as: 'coach_avatar'
-            }
+              as: 'coach_avatar',
+            },
           },
           {
             $unwind: {
               path: '$coach_avatar',
-              preserveNullAndEmptyArrays: true
-            }
+              preserveNullAndEmptyArrays: true,
+            },
           },
           // Project the required fields for active_program
           {
@@ -449,40 +447,42 @@ const getAllCourses = async ({ query }) => {
                     $and: [
                       { $eq: ['$is_fire_sale', true] },
                       { $ne: ['$price_discounted', null] },
-                      { $gt: ['$price_discounted', 0] }
-                    ]
+                      { $gt: ['$price_discounted', 0] },
+                    ],
                   },
                   then: '$price_discounted',
-                  else: '$price_real'
-                }
+                  else: '$price_real',
+                },
               },
               is_fire_sale: 1,
               program_type: 1,
               is_have_member: {
-                $lt: ['$max_member_accept', { $size: { $ifNull: ['$members', []] } }]
-              }
-            }
-          }
+                $lt: ['$max_member_accept', { $size: { $ifNull: ['$members', []] } }],
+              },
+            },
+          },
         ],
-        as: 'active_programs'
-      }
+        as: 'active_programs',
+      },
     },
 
     // Add active_program field to the response
     {
       $addFields: {
-        active_program: '$active_programs'
-      }
+        active_program: '$active_programs',
+      },
     },
 
     // Filter by is_have_active_program if requested
-    ...(query.is_have_active_program === 'true' ? [
-      {
-        $match: {
-          'active_programs.0': { $exists: true } // Has at least one active program
-        }
-      }
-    ] : []),
+    ...(query.is_have_active_program === 'true'
+      ? [
+          {
+            $match: {
+              'active_programs.0': { $exists: true }, // Has at least one active program
+            },
+          },
+        ]
+      : []),
 
     // Lookup for tumbnail
     {
@@ -490,14 +490,14 @@ const getAllCourses = async ({ query }) => {
         from: 'uploads',
         localField: 'tumbnail',
         foreignField: '_id',
-        as: 'tumbnail'
-      }
+        as: 'tumbnail',
+      },
     },
     {
       $unwind: {
         path: '$tumbnail',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
 
     // Lookup for course_session_category
@@ -506,22 +506,22 @@ const getAllCourses = async ({ query }) => {
         from: 'course_session_categories', // Adjust collection name as needed
         localField: 'course_session_category',
         foreignField: '_id',
-        as: 'course_session_category'
-      }
+        as: 'course_session_category',
+      },
     },
 
     // Remove the temporary active_programs field
     {
       $project: {
-        active_programs: 0
-      }
-    }
+        active_programs: 0,
+      },
+    },
   ];
 
   // Get total count
   const totalPipeline = [
     ...pipeline.slice(0, -1), // Remove the final projection
-    { $count: 'total' }
+    { $count: 'total' },
   ];
 
   const totalResult = await CourseSession.aggregate(totalPipeline);
@@ -539,10 +539,7 @@ const getAllCourses = async ({ query }) => {
 
   // Add pagination
   const skip = (options.page - 1) * options.limit;
-  pipeline.push(
-    { $skip: skip },
-    { $limit: options.limit }
-  );
+  pipeline.push({ $skip: skip }, { $limit: options.limit });
 
   // Execute aggregation
   const courses = await CourseSession.aggregate(pipeline);
@@ -552,7 +549,7 @@ const getAllCourses = async ({ query }) => {
     page: options.page,
     limit: options.limit,
     totalPages: Math.ceil(total / options.limit),
-    totalResults: total
+    totalResults: total,
   };
 };
 
@@ -2019,32 +2016,118 @@ const retryCourseSessionOrder = async ({ orderId, user }) => {
 
 // Program
 
-
 const getAllProgramsForUser = async (filter, options) => {
-
-
   const { page = 1, limit = 10 } = options;
-  const { q, date_begin } = filter;
+  const {
+    q,
+    date_begin,
+    course_category = '',
+    is_program_full_member = null,
+    coach_id = null,
+    packages = '',
+    price_from = null,
+    price_to = null,
+    program_type = null,
+    is_fire_sale = null,
+    status = null,
+    is_have_licence = null,
+  } = filter;
 
   const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
-  // Build search conditions
-  const searchConditions = [];
+  // Convert string parameters to arrays
+  const courseCategoryArray = queryParamsStringToArray(course_category) || [];
+  const packagesArray = queryParamsStringToArray(packages) || [];
 
+  console.log('courseCategoryArray', courseCategoryArray);
+  console.log('coach_id', coach_id);
+
+  // Build search conditions
+  const matchConditions = [];
+
+  // Text search
   if (q) {
-    searchConditions.push(
+    matchConditions.push(
       { 'course.title': { $regex: q, $options: 'i' } },
       { 'course.sub_title': { $regex: q, $options: 'i' } },
       { 'coach.first_name': { $regex: q, $options: 'i' } },
       { 'coach.last_name': { $regex: q, $options: 'i' } }
     );
   }
+  // Course Category filter
+  if (courseCategoryArray.length > 0) {
+    matchConditions.push({
+      'course.course_session_category': {
+        $in: courseCategoryArray,
+      },
+    });
+  }
+
+  // Coach filter
+  // if (coach_id && mongoose.Types.ObjectId.isValid(coach_id)) {
+  //   matchConditions.push({
+  //     coach: mongoose.Types.ObjectId(coach_id)
+  //   });
+  // }
+  // Packages filter - Direct filter on ObjectId array
+  if (packagesArray.length > 0) {
+    matchConditions.push({
+      packages: {
+        $in: packagesArray,
+      },
+    });
+  }
+
+  // Program Type filter
+  if (program_type) {
+    matchConditions.push({ program_type });
+  }
+
+  // Fire Sale filter
+  if (is_fire_sale !== null) {
+    matchConditions.push({
+      is_fire_sale: is_fire_sale === 'true' || is_fire_sale === true,
+    });
+  }
+
+  // Status filter
+  if (status) {
+    matchConditions.push({ status });
+  }
+
+  // License filter
+  if (is_have_licence !== null) {
+    matchConditions.push({
+      is_have_licence: is_have_licence === 'true' || is_have_licence === true,
+    });
+  }
+
+  // Price Range filter
+  const priceMatch = {};
+  if (price_from !== null || price_to !== null) {
+    if (price_from !== null) {
+      priceMatch.$gte = Number(price_from);
+    }
+    if (price_to !== null) {
+      priceMatch.$lte = Number(price_to);
+    }
+  }
+
+  // Full Member filter
+  const memberMatch = {};
+  if (is_program_full_member !== null) {
+    if (is_program_full_member === 'true' || is_program_full_member === true) {
+      memberMatch.$expr = { $gte: [{ $size: '$members' }, '$max_member_accept'] };
+    } else {
+      memberMatch.$expr = { $lt: [{ $size: '$members' }, '$max_member_accept'] };
+    }
+  }
 
   // Aggregation pipeline
   const pipeline = [
     {
       $lookup: {
-        from: 'course_sessions', // MongoDB collection name (usually pluralized)
+        from: 'course_sessions',
         localField: 'course',
         foreignField: '_id',
         as: 'course',
@@ -2064,8 +2147,30 @@ const getAllProgramsForUser = async (filter, options) => {
     {
       $unwind: '$coach',
     },
+    // Apply price range filter with fire sale logic
+    ...(Object.keys(priceMatch).length > 0
+      ? [
+          {
+            $addFields: {
+              effectivePrice: {
+                $cond: {
+                  if: { $and: ['$is_fire_sale', { $ne: ['$price_discounted', null] }] },
+                  then: '$price_discounted',
+                  else: '$price_real',
+                },
+              },
+            },
+          },
+        ]
+      : []),
     {
-      $match: searchConditions.length > 0 ? { $or: searchConditions } : {},
+      $match: {
+        ...(matchConditions.length > 0 ? { $or: matchConditions } : {}),
+        ...(Object.keys(priceMatch).length > 0 ? { effectivePrice: priceMatch } : {}),
+        ...memberMatch,
+        // Handle coach_id filter separately
+        ...(coach_id && mongoose.Types.ObjectId.isValid(coach_id) ? { 'coach._id': mongoose.Types.ObjectId(coach_id) } : {}),
+      },
     },
     {
       $facet: {
@@ -2073,15 +2178,15 @@ const getAllProgramsForUser = async (filter, options) => {
           { $count: 'totalResults' },
           {
             $addFields: {
-              page: Number(page),
-              limit: Number(limit),
+              page: parseInt(page),
+              limit: parseInt(limit),
               totalPages: {
-                $ceil: { $divide: ['$totalResults', limit] },
+                $ceil: { $divide: ['$totalResults', parseInt(limit)] },
               },
             },
           },
         ],
-        data: [{ $skip: Number(skip) }, { $limit: Number(limit) }],
+        data: [{ $skip: skip }, { $limit: parseInt(limit) }],
       },
     },
   ];
@@ -2090,8 +2195,8 @@ const getAllProgramsForUser = async (filter, options) => {
 
   const metadata = result[0]?.metadata[0] || {
     totalResults: 0,
-    page,
-    limit,
+    page: parseInt(page),
+    limit: parseInt(limit),
     totalPages: 0,
   };
 

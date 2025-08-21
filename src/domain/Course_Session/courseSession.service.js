@@ -2136,6 +2136,27 @@ const getAllProgramsForUser = async (filter, options) => {
     {
       $unwind: '$course',
     },
+    // Populate course thumbnail
+    {
+      $lookup: {
+        from: 'uploads',
+        localField: 'course.tumbnail',
+        foreignField: '_id',
+        as: 'course_thumbnail',
+      },
+    },
+    {
+      $unwind: {
+        path: '$course_thumbnail',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    // Add thumbnail back to course object
+    {
+      $addFields: {
+        'course.tumbnail': '$course_thumbnail',
+      },
+    },
     {
       $lookup: {
         from: 'users',
@@ -2146,6 +2167,27 @@ const getAllProgramsForUser = async (filter, options) => {
     },
     {
       $unwind: '$coach',
+    },
+    // Populate coach avatar if needed
+    {
+      $lookup: {
+        from: 'uploads',
+        localField: 'coach.avatar',
+        foreignField: '_id',
+        as: 'coach_avatar',
+      },
+    },
+    {
+      $unwind: {
+        path: '$coach_avatar',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    // Add avatar back to coach object
+    {
+      $addFields: {
+        'coach.avatar': '$coach_avatar',
+      },
     },
     // Apply price range filter with fire sale logic
     ...(Object.keys(priceMatch).length > 0
@@ -2170,6 +2212,14 @@ const getAllProgramsForUser = async (filter, options) => {
         ...memberMatch,
         // Handle coach_id filter separately
         ...(coach_id && mongoose.Types.ObjectId.isValid(coach_id) ? { 'coach._id': mongoose.Types.ObjectId(coach_id) } : {}),
+      },
+    },
+    // Clean up temporary fields
+    {
+      $project: {
+        course_thumbnail: 0,
+        coach_avatar: 0,
+        effectivePrice: 0,
       },
     },
     {

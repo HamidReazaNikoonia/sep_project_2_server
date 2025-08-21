@@ -2016,11 +2016,84 @@ const retryCourseSessionOrder = async ({ orderId, user }) => {
 
 // Program
 
+// Add this utility function before getAllProgramsForUser
+const getDateRangeForFilter = (dateFilter) => {
+  const now = new Date();
+  const ranges = {};
+
+  // Helper functions
+  const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const endOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+  const startOfWeek = (date) => {
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    return startOfDay(new Date(date.setDate(diff)));
+  };
+  const endOfWeek = (date) => {
+    const start = startOfWeek(new Date(date));
+    return endOfDay(new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000));
+  };
+  const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
+  const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  // Define date ranges
+  if (dateFilter.includes('today')) {
+    ranges.today = {
+      $gte: startOfDay(new Date(now)),
+      $lte: endOfDay(new Date(now))
+    };
+  }
+
+  if (dateFilter.includes('tomorrow')) {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    ranges.tomorrow = {
+      $gte: startOfDay(tomorrow),
+      $lte: endOfDay(tomorrow)
+    };
+  }
+
+  if (dateFilter.includes('this_week')) {
+    ranges.this_week = {
+      $gte: startOfWeek(new Date(now)),
+      $lte: endOfWeek(new Date(now))
+    };
+  }
+
+  if (dateFilter.includes('next_week')) {
+    const nextWeek = new Date(now);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    ranges.next_week = {
+      $gte: startOfWeek(nextWeek),
+      $lte: endOfWeek(nextWeek)
+    };
+  }
+
+  if (dateFilter.includes('this_month')) {
+    ranges.this_month = {
+      $gte: startOfMonth(new Date(now)),
+      $lte: endOfMonth(new Date(now))
+    };
+  }
+
+  if (dateFilter.includes('next_month')) {
+    const nextMonth = new Date(now);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    ranges.next_month = {
+      $gte: startOfMonth(nextMonth),
+      $lte: endOfMonth(nextMonth)
+    };
+  }
+
+  return ranges;
+};
+
 const getAllProgramsForUser = async (filter, options) => {
   const { page = 1, limit = 10 } = options;
   const {
     q,
     date_begin,
+    selected_day,
     course_category = '',
     is_program_full_member = null,
     coach_id = null,
@@ -2039,8 +2112,16 @@ const getAllProgramsForUser = async (filter, options) => {
   const courseCategoryArray = queryParamsStringToArray(course_category) || [];
   const packagesArray = queryParamsStringToArray(packages) || [];
 
+  // Process date_begin filter
+  const dateBeginArray = date_begin ? date_begin.split(',').map(item => item.trim()) : [];
+
+  // Process selected_day filter (assuming it's a specific date or day of week)
+  const selectedDayArray = selected_day ? selected_day.split(',').map(item => item.trim()) : [];
+
   console.log('courseCategoryArray', courseCategoryArray);
   console.log('coach_id', coach_id);
+  console.log('dateBeginArray', dateBeginArray);
+  console.log('selectedDayArray', selectedDayArray);
 
   // Build search conditions
   const matchConditions = [];
@@ -2054,6 +2135,7 @@ const getAllProgramsForUser = async (filter, options) => {
       { 'coach.last_name': { $regex: q, $options: 'i' } }
     );
   }
+
   // Course Category filter
   if (courseCategoryArray.length > 0) {
     matchConditions.push({
@@ -2120,6 +2202,72 @@ const getAllProgramsForUser = async (filter, options) => {
       memberMatch.$expr = { $gte: [{ $size: '$members' }, '$max_member_accept'] };
     } else {
       memberMatch.$expr = { $lt: [{ $size: '$members' }, '$max_member_accept'] };
+    }
+  }
+
+  // Date filters for first session
+  const dateFilters = {};
+
+  // Handle date_begin filter
+  if (dateBeginArray.length > 0) {
+    const dateRanges = getDateRangeForFilter(dateBeginArray);
+    console.log({dateRanges});
+    const dateConditions = Object.values(dateRanges);
+
+    console.log({dateConditions});
+
+    if (dateConditions.length > 0) {
+      dateFilters.first_session_date = {
+        $or: dateConditions.map(range => ({
+          $and: [
+            { $gte: ['$sessions.0.date', new Date(range.$gte)] },
+            { $lte: ['$sessions.0.date', new Date(range.$lte)] }
+          ]
+        }))
+      };
+    }
+  }
+
+  // Handle selected_day filter (specific dates or day of week)
+  if (selectedDayArray.length > 0) {
+    const dayConditions = [];
+
+    selectedDayArray.forEach(day => {
+      // Check if it's a specific date (YYYY-MM-DD format)
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        const specificDate = new Date(day);
+        const startOfSpecificDay = new Date(specificDate.getFullYear(), specificDate.getMonth(), specificDate.getDate());
+        const endOfSpecificDay = new Date(specificDate.getFullYear(), specificDate.getMonth(), specificDate.getDate(), 23, 59, 59, 999);
+
+        dayConditions.push({
+          $and: [
+            { $gte: ['$sessions.0.date', startOfSpecificDay] },
+            { $lte: ['$sessions.0.date', endOfSpecificDay] }
+          ]
+        });
+      }
+      // Check if it's a day of week (0-6, where 0 is Sunday)
+      else if (/^[0-6]$/.test(day)) {
+        dayConditions.push({
+          $eq: [{ $dayOfWeek: '$sessions.0.date' }, parseInt(day) + 1] // MongoDB dayOfWeek is 1-7
+        });
+      }
+      // Check if it's a day name (monday, tuesday, etc.)
+      else {
+        const dayMap = {
+          'sunday': 1, 'monday': 2, 'tuesday': 3, 'wednesday': 4,
+          'thursday': 5, 'friday': 6, 'saturday': 7
+        };
+        if (dayMap[day.toLowerCase()]) {
+          dayConditions.push({
+            $eq: [{ $dayOfWeek: '$sessions.0.date' }, dayMap[day.toLowerCase()]]
+          });
+        }
+      }
+    });
+
+    if (dayConditions.length > 0) {
+      dateFilters.selected_day = { $or: dayConditions };
     }
   }
 
@@ -2205,6 +2353,23 @@ const getAllProgramsForUser = async (filter, options) => {
           },
         ]
       : []),
+    // Apply date filters using $expr for complex date operations
+    ...(Object.keys(dateFilters).length > 0
+      ? [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  // Ensure sessions array is not empty
+                  { $gt: [{ $size: '$sessions' }, 0] },
+                  // Apply date filters
+                  ...Object.values(dateFilters)
+                ]
+              }
+            }
+          }
+        ]
+      : []),
     {
       $match: {
         ...(matchConditions.length > 0 ? { $or: matchConditions } : {}),
@@ -2240,7 +2405,7 @@ const getAllProgramsForUser = async (filter, options) => {
       },
     },
   ];
-
+  mongoose.set('debug', true);
   const result = await classProgramModel.aggregate(pipeline);
 
   const metadata = result[0]?.metadata[0] || {

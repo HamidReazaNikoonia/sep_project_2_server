@@ -160,6 +160,7 @@ const getAllProgramsForUser = catchAsync(async (req, res) => {
   const filter = pick(req.query, [
     'coach_id',
     'date_begin',
+    'selected_day',
     'program_id',
     'coach_full_name',
     'course_id',

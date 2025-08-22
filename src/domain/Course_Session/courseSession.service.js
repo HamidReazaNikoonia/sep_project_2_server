@@ -2228,7 +2228,7 @@ const getAllProgramsForUser = async (filter, options) => {
     }
   }
 
-  // Handle selected_day filter (specific dates or day of week)
+  // Handle selected_day filter (check all sessions, not just first)
   if (selectedDayArray.length > 0) {
     const dayConditions = [];
 
@@ -2240,16 +2240,32 @@ const getAllProgramsForUser = async (filter, options) => {
         const endOfSpecificDay = new Date(specificDate.getFullYear(), specificDate.getMonth(), specificDate.getDate(), 23, 59, 59, 999);
 
         dayConditions.push({
-          $and: [
-            { $gte: [{ $arrayElemAt: ['$sessions.date', 0] }, startOfSpecificDay] },
-            { $lte: [{ $arrayElemAt: ['$sessions.date', 0] }, endOfSpecificDay] }
-          ]
+          $anyElementTrue: {
+            $map: {
+              input: '$sessions',
+              as: 'session',
+              in: {
+                $and: [
+                  { $gte: ['$$session.date', startOfSpecificDay] },
+                  { $lte: ['$$session.date', endOfSpecificDay] }
+                ]
+              }
+            }
+          }
         });
       }
       // Check if it's a day of week (0-6, where 0 is Sunday)
       else if (/^[0-6]$/.test(day)) {
         dayConditions.push({
-          $eq: [{ $dayOfWeek: { $arrayElemAt: ['$sessions.date', 0] } }, parseInt(day) + 1] // MongoDB dayOfWeek is 1-7
+          $anyElementTrue: {
+            $map: {
+              input: '$sessions',
+              as: 'session',
+              in: {
+                $eq: [{ $dayOfWeek: '$$session.date' }, parseInt(day) + 1] // MongoDB dayOfWeek is 1-7
+              }
+            }
+          }
         });
       }
       // Check if it's a day name (monday, tuesday, etc.)
@@ -2260,7 +2276,15 @@ const getAllProgramsForUser = async (filter, options) => {
         };
         if (dayMap[day.toLowerCase()]) {
           dayConditions.push({
-            $eq: [{ $dayOfWeek: { $arrayElemAt: ['$sessions.date', 0] } }, dayMap[day.toLowerCase()]]
+            $anyElementTrue: {
+              $map: {
+                input: '$sessions',
+                as: 'session',
+                in: {
+                  $eq: [{ $dayOfWeek: '$$session.date' }, dayMap[day.toLowerCase()]]
+                }
+              }
+            }
           });
         }
       }

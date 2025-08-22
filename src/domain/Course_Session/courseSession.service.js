@@ -2220,8 +2220,8 @@ const getAllProgramsForUser = async (filter, options) => {
       dateFilters.first_session_date = {
         $or: dateConditions.map(range => ({
           $and: [
-            { $gte: ['$sessions.0.date', new Date(range.$gte)] },
-            { $lte: ['$sessions.0.date', new Date(range.$lte)] }
+            { $gte: [{ $arrayElemAt: ['$sessions.date', 0] }, new Date(range.$gte)] },
+            { $lte: [{ $arrayElemAt: ['$sessions.date', 0] }, new Date(range.$lte)] }
           ]
         }))
       };
@@ -2241,15 +2241,15 @@ const getAllProgramsForUser = async (filter, options) => {
 
         dayConditions.push({
           $and: [
-            { $gte: ['$sessions.0.date', startOfSpecificDay] },
-            { $lte: ['$sessions.0.date', endOfSpecificDay] }
+            { $gte: [{ $arrayElemAt: ['$sessions.date', 0] }, startOfSpecificDay] },
+            { $lte: [{ $arrayElemAt: ['$sessions.date', 0] }, endOfSpecificDay] }
           ]
         });
       }
       // Check if it's a day of week (0-6, where 0 is Sunday)
       else if (/^[0-6]$/.test(day)) {
         dayConditions.push({
-          $eq: [{ $dayOfWeek: '$sessions.0.date' }, parseInt(day) + 1] // MongoDB dayOfWeek is 1-7
+          $eq: [{ $dayOfWeek: { $arrayElemAt: ['$sessions.date', 0] } }, parseInt(day) + 1] // MongoDB dayOfWeek is 1-7
         });
       }
       // Check if it's a day name (monday, tuesday, etc.)
@@ -2260,7 +2260,7 @@ const getAllProgramsForUser = async (filter, options) => {
         };
         if (dayMap[day.toLowerCase()]) {
           dayConditions.push({
-            $eq: [{ $dayOfWeek: '$sessions.0.date' }, dayMap[day.toLowerCase()]]
+            $eq: [{ $dayOfWeek: { $arrayElemAt: ['$sessions.date', 0] } }, dayMap[day.toLowerCase()]]
           });
         }
       }
@@ -2405,7 +2405,7 @@ const getAllProgramsForUser = async (filter, options) => {
       },
     },
   ];
-  mongoose.set('debug', true);
+
   const result = await classProgramModel.aggregate(pipeline);
 
   const metadata = result[0]?.metadata[0] || {

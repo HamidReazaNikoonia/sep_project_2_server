@@ -2040,7 +2040,7 @@ const getDateRangeForFilter = (dateFilter) => {
   if (dateFilter.includes('today')) {
     ranges.today = {
       $gte: startOfDay(new Date(now)),
-      $lte: endOfDay(new Date(now))
+      $lte: endOfDay(new Date(now)),
     };
   }
 
@@ -2049,14 +2049,14 @@ const getDateRangeForFilter = (dateFilter) => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     ranges.tomorrow = {
       $gte: startOfDay(tomorrow),
-      $lte: endOfDay(tomorrow)
+      $lte: endOfDay(tomorrow),
     };
   }
 
   if (dateFilter.includes('this_week')) {
     ranges.this_week = {
       $gte: startOfWeek(new Date(now)),
-      $lte: endOfWeek(new Date(now))
+      $lte: endOfWeek(new Date(now)),
     };
   }
 
@@ -2065,14 +2065,14 @@ const getDateRangeForFilter = (dateFilter) => {
     nextWeek.setDate(nextWeek.getDate() + 7);
     ranges.next_week = {
       $gte: startOfWeek(nextWeek),
-      $lte: endOfWeek(nextWeek)
+      $lte: endOfWeek(nextWeek),
     };
   }
 
   if (dateFilter.includes('this_month')) {
     ranges.this_month = {
       $gte: startOfMonth(new Date(now)),
-      $lte: endOfMonth(new Date(now))
+      $lte: endOfMonth(new Date(now)),
     };
   }
 
@@ -2081,7 +2081,7 @@ const getDateRangeForFilter = (dateFilter) => {
     nextMonth.setMonth(nextMonth.getMonth() + 1);
     ranges.next_month = {
       $gte: startOfMonth(nextMonth),
-      $lte: endOfMonth(nextMonth)
+      $lte: endOfMonth(nextMonth),
     };
   }
 
@@ -2113,15 +2113,15 @@ const getAllProgramsForUser = async (filter, options) => {
   const packagesArray = queryParamsStringToArray(packages) || [];
 
   // Process date_begin filter
-  const dateBeginArray = date_begin ? date_begin.split(',').map(item => item.trim()) : [];
+  const dateBeginArray = date_begin ? date_begin.split(',').map((item) => item.trim()) : [];
 
   // Process selected_day filter (assuming it's a specific date or day of week)
-  const selectedDayArray = selected_day ? selected_day.split(',').map(item => item.trim()) : [];
+  const selectedDayArray = selected_day ? selected_day.split(',').map((item) => item.trim()) : [];
 
-  console.log('courseCategoryArray', courseCategoryArray);
-  console.log('coach_id', coach_id);
-  console.log('dateBeginArray', dateBeginArray);
-  console.log('selectedDayArray', selectedDayArray);
+  // console.log('courseCategoryArray', courseCategoryArray);
+  // console.log('coach_id', coach_id);
+  // console.log('dateBeginArray', dateBeginArray);
+  // console.log('selectedDayArray', selectedDayArray);
 
   // Build search conditions
   const matchConditions = [];
@@ -2211,19 +2211,19 @@ const getAllProgramsForUser = async (filter, options) => {
   // Handle date_begin filter
   if (dateBeginArray.length > 0) {
     const dateRanges = getDateRangeForFilter(dateBeginArray);
-    console.log({dateRanges});
+    // console.log({ dateRanges });
     const dateConditions = Object.values(dateRanges);
 
-    console.log({dateConditions});
+    // console.log({ dateConditions });
 
     if (dateConditions.length > 0) {
       dateFilters.first_session_date = {
-        $or: dateConditions.map(range => ({
+        $or: dateConditions.map((range) => ({
           $and: [
             { $gte: [{ $arrayElemAt: ['$sessions.date', 0] }, new Date(range.$gte)] },
-            { $lte: [{ $arrayElemAt: ['$sessions.date', 0] }, new Date(range.$lte)] }
-          ]
-        }))
+            { $lte: [{ $arrayElemAt: ['$sessions.date', 0] }, new Date(range.$lte)] },
+          ],
+        })),
       };
     }
   }
@@ -2232,12 +2232,20 @@ const getAllProgramsForUser = async (filter, options) => {
   if (selectedDayArray.length > 0) {
     const dayConditions = [];
 
-    selectedDayArray.forEach(day => {
+    selectedDayArray.forEach((day) => {
       // Check if it's a specific date (YYYY-MM-DD format)
       if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
         const specificDate = new Date(day);
         const startOfSpecificDay = new Date(specificDate.getFullYear(), specificDate.getMonth(), specificDate.getDate());
-        const endOfSpecificDay = new Date(specificDate.getFullYear(), specificDate.getMonth(), specificDate.getDate(), 23, 59, 59, 999);
+        const endOfSpecificDay = new Date(
+          specificDate.getFullYear(),
+          specificDate.getMonth(),
+          specificDate.getDate(),
+          23,
+          59,
+          59,
+          999
+        );
 
         dayConditions.push({
           $anyElementTrue: {
@@ -2245,13 +2253,10 @@ const getAllProgramsForUser = async (filter, options) => {
               input: '$sessions',
               as: 'session',
               in: {
-                $and: [
-                  { $gte: ['$$session.date', startOfSpecificDay] },
-                  { $lte: ['$$session.date', endOfSpecificDay] }
-                ]
-              }
-            }
-          }
+                $and: [{ $gte: ['$$session.date', startOfSpecificDay] }, { $lte: ['$$session.date', endOfSpecificDay] }],
+              },
+            },
+          },
         });
       }
       // Check if it's a day of week (0-6, where 0 is Sunday)
@@ -2262,17 +2267,22 @@ const getAllProgramsForUser = async (filter, options) => {
               input: '$sessions',
               as: 'session',
               in: {
-                $eq: [{ $dayOfWeek: '$$session.date' }, parseInt(day) + 1] // MongoDB dayOfWeek is 1-7
-              }
-            }
-          }
+                $eq: [{ $dayOfWeek: '$$session.date' }, parseInt(day) + 1], // MongoDB dayOfWeek is 1-7
+              },
+            },
+          },
         });
       }
       // Check if it's a day name (monday, tuesday, etc.)
       else {
         const dayMap = {
-          'sunday': 1, 'monday': 2, 'tuesday': 3, 'wednesday': 4,
-          'thursday': 5, 'friday': 6, 'saturday': 7
+          sunday: 1,
+          monday: 2,
+          tuesday: 3,
+          wednesday: 4,
+          thursday: 5,
+          friday: 6,
+          saturday: 7,
         };
         if (dayMap[day.toLowerCase()]) {
           dayConditions.push({
@@ -2281,10 +2291,10 @@ const getAllProgramsForUser = async (filter, options) => {
                 input: '$sessions',
                 as: 'session',
                 in: {
-                  $eq: [{ $dayOfWeek: '$$session.date' }, dayMap[day.toLowerCase()]]
-                }
-              }
-            }
+                  $eq: [{ $dayOfWeek: '$$session.date' }, dayMap[day.toLowerCase()]],
+                },
+              },
+            },
           });
         }
       }
@@ -2387,11 +2397,11 @@ const getAllProgramsForUser = async (filter, options) => {
                   // Ensure sessions array is not empty
                   { $gt: [{ $size: '$sessions' }, 0] },
                   // Apply date filters
-                  ...Object.values(dateFilters)
-                ]
-              }
-            }
-          }
+                  ...Object.values(dateFilters),
+                ],
+              },
+            },
+          },
         ]
       : []),
     {

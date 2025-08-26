@@ -91,6 +91,18 @@ const userSchema = mongoose.Schema(
       type: String,
       required: false,
     },
+    postal_code: {
+      type: String,
+      required: false,
+    },
+    field_of_study: {
+      type: String,
+      required: false,
+    },
+    educational_qualification: {
+      type: String,
+      required: false,
+    },
     job_title: String,
     mariage_status: {
       type: String,

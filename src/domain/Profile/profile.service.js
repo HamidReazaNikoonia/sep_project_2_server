@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 /* eslint-disable no-restricted-syntax */
 const httpStatus = require('http-status');
+const iranCity = require('iran-city');
 const ApiError = require('../../utils/ApiError');
 
 const Profile = require('./profile.model');
@@ -34,6 +35,9 @@ const getProfile = async (userId) => {
     }
   }
 
+  // eslint-disable-next-line no-console
+  console.log({ UserOrders });
+
   //  // Get Users courses
   //  const userCourses = await Course.find({ user: user.id });
 
@@ -63,7 +67,24 @@ const updateProfile = async (userId, updateData) => {
   return profile;
 };
 
-const completeProfile = async (userId, user, { name, family, gender, national_card_images, nationalId, avatar }) => {
+const completeProfile = async (
+  userId,
+  user,
+  {
+    name,
+    family,
+    gender,
+    national_card_images,
+    nationalId,
+    avatar,
+    city,
+    field_of_study,
+    educational_qualification,
+    postalCode,
+    job_title,
+    address,
+  }
+) => {
   // const profile = await Profile.findOne({ user: userId });
 
   if (!user.id) {
@@ -91,6 +112,29 @@ const completeProfile = async (userId, user, { name, family, gender, national_ca
   currentUser.last_name = family;
   currentUser.gender = gender;
 
+  if (field_of_study) {
+    currentUser.field_of_study = field_of_study;
+  }
+
+  if (educational_qualification) {
+    currentUser.educational_qualification = educational_qualification;
+  }
+
+  // eslint-disable-next-line no-console
+  console.log({ postalCode });
+
+  if (postalCode) {
+    currentUser.postal_code = postalCode;
+  }
+
+  if (job_title) {
+    currentUser.job_title = job_title;
+  }
+
+  if (address) {
+    currentUser.address = address;
+  }
+
   if (national_card_images) {
     currentUser.national_card_images = national_card_images;
   }
@@ -100,6 +144,15 @@ const completeProfile = async (userId, user, { name, family, gender, national_ca
   if (avatar) {
     currentUser.avatar = avatar;
   }
+  if (city) {
+    currentUser.city = city;
+    const cityData = iranCity.cityById(Number(city));
+    // eslint-disable-next-line no-console
+    console.log({ cityData: cityData.province_id });
+    currentUser.province = cityData.province_id;
+  }
+
+  // Find the province ID based on the city ID
 
   const savedUser = await currentUser.save();
 

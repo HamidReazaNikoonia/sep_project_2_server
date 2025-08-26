@@ -27,7 +27,20 @@ const updateProfile = catchAsync(async (req, res) => {
 // Update liked products or courses
 const completeProfile = catchAsync(async (req, res) => {
   const { user_id } = req.params;
-  const { name, family, gender, national_card_images, nationalId, avatar } = req.body;
+  const {
+    name,
+    family,
+    gender,
+    national_card_images,
+    nationalId,
+    avatar,
+    city,
+    field_of_study,
+    educational_qualification,
+    postalCode,
+    job_title,
+    address,
+  } = req.body;
 
   const updatedProfile = await profileService.completeProfile(user_id, req.user, {
     name,
@@ -36,6 +49,12 @@ const completeProfile = catchAsync(async (req, res) => {
     national_card_images,
     nationalId,
     avatar,
+    city,
+    field_of_study,
+    educational_qualification,
+    postalCode,
+    job_title,
+    address,
   });
 
   res.status(httpStatus.OK).send(updatedProfile);

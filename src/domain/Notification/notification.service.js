@@ -189,7 +189,7 @@ const markAsClicked = async (notificationId, userId) => {
  */
 const markAllAsRead = async (userId) => {
   const result = await Notification.markAllAsRead(userId);
-  return { modifiedCount: result.modifiedCount };
+  return { modifiedCount: result?.nModified };
 };
 
 /**

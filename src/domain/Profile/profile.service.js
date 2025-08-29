@@ -83,6 +83,7 @@ const completeProfile = async (
     postalCode,
     job_title,
     address,
+    personal_img,
   }
 ) => {
   // const profile = await Profile.findOne({ user: userId });
@@ -151,7 +152,9 @@ const completeProfile = async (
     console.log({ cityData: cityData.province_id });
     currentUser.province = cityData.province_id;
   }
-
+  if (personal_img) {
+    currentUser.personal_img = personal_img;
+  }
   // Find the province ID based on the city ID
 
   const savedUser = await currentUser.save();

@@ -10,7 +10,7 @@ dotenv.config();
 const Notification = require('../domain/Notification/notification.model');
 
 // Your provided IDs
-const USER_IDS = ['67976d05a41ee135e561b809', '679d440c18c8446a24186c36', '68467788186e0cb691a16f83'];
+const USER_IDS = ['68526d430cec9186a98c07bb'];
 
 const COURSE_IDS = ['6843b58fd8e1902c7d162e75', '6843b676d8e1902c7d162e8c', '6843cabec8b36b2417f13236'];
 

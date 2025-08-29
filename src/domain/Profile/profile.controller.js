@@ -40,6 +40,7 @@ const completeProfile = catchAsync(async (req, res) => {
     postalCode,
     job_title,
     address,
+    personal_img,
   } = req.body;
 
   const updatedProfile = await profileService.completeProfile(user_id, req.user, {
@@ -55,6 +56,7 @@ const completeProfile = catchAsync(async (req, res) => {
     postalCode,
     job_title,
     address,
+    personal_img,
   });
 
   res.status(httpStatus.OK).send(updatedProfile);

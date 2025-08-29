@@ -14,11 +14,11 @@ const server_url = 'http://localhost:9000/v1';
 const { Course } = require('../domain/Course/course.model'); // Adjust path as needed
 
 // Provided IDs
-const USER_IDS = ['67976d05a41ee135e561b809', '679d440c18c8446a24186c36', '68467788186e0cb691a16f83'];
+const USER_IDS = ['68526d430cec9186a98c07bb'];
 
-const FILE_IDS = ['684661e28fb728fa3fc0b1ce', '684657117abedc98783f2ab3', '67620e2688dd804ab80f6c1a'];
+const FILE_IDS = ['68ade90d272517005918c6c0', '68adea69272517005918c6cb', '68adeabf272517005918c6d7'];
 
-const COURSE_CATEGORY_IDS = ['6762e39bf0c0512554de0019', '6762e3a3f0c0512554de001b', '68464b39ba0ecc8dd93fb2c1'];
+const COURSE_CATEGORY_IDS = ['68b16548286466003d9e9d2f', '68b1656a4d2bfb004b05b753', '68b165b64d2bfb004b05b758'];
 
 // Helpers
 const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -69,7 +69,7 @@ const fakeDescriptions = [
 ];
 
 // Sample media types
-const mediaTypes = ['video', 'audio', 'document'];
+const mediaTypes = ['VIDEO', 'AUDIO', 'DOCUMENT', 'IMAGE'];
 
 // Course languages
 const languages = ['fa', 'en'];
@@ -77,14 +77,52 @@ const languages = ['fa', 'en'];
 // Course types
 const courseTypes = ['HOZORI', 'OFFLINE'];
 
+
+const sampleMedia = [
+  {
+    media_type: 'IMAGE',
+    file: '68ac2dc9b6827b002fdd3260',
+  },
+  {
+    media_type: 'IMAGE',
+    file: '68ade4ff07a301002fd14431',
+  },
+  {
+    media_type: 'VIDEO',
+    file: '68b162433a6144002f4ad48f',
+  },
+  {
+    media_type: 'VIDEO',
+    file: '68b162433a6144002f4ad48f',
+  },
+  {
+    media_type: 'VIDEO',
+    file: '68b162433a6144002f4ad48f',
+  },
+  {
+    media_type: 'DOCUMENT',
+    file: '68b1628b93c609003d28d70c',
+  },
+  {
+    media_type: 'DOCUMENT',
+    file: '68b1628b93c609003d28d70c',
+  },
+  {
+    media_type: 'AUDIO',
+    file: '68b162eb93c609003d28d70e',
+  },
+
+];
+
 // Generate sample media
 const generateSampleMedia = () => {
   const count = randomInt(1, 3); // 1 to 3 sample media
   const media = [];
 
   for (let i = 0; i < count; i++) {
-    const fileId = new mongoose.Types.ObjectId(randomItem(FILE_IDS));
-    const type = randomItem(mediaTypes);
+    const _sampleMedia = randomItem(sampleMedia);
+    const fileId = new mongoose.Types.ObjectId(_sampleMedia.file);
+    const type = _sampleMedia.media_type;
     const title = `نمونه محتوا ${i + 1}`;
     const url = `${server_url}/file/${fileId}`;
 
@@ -105,9 +143,29 @@ const generateCourseObjects = (subjectCount) => {
   for (let i = 0; i < subjectCount; i++) {
     objects.push({
       subject_title: `فصل ${i + 1}: مفاهیم پایه`,
+      description: 'این فصل شامل مفاهیم پایه و آموزش های مرتبط با آن است.',
+      order: i + 1,
       status: randomBool(0.8) ? 'PUBLIC' : 'PRIVATE',
       duration: randomInt(10, 60), // minutes
-      files: new mongoose.Types.ObjectId(randomItem(FILE_IDS)),
+      files: new mongoose.Types.ObjectId('68b162433a6144002f4ad48f'), // video
+      lessons: [
+        {
+          title: 'درس 1: مفاهیم پایه',
+          description: 'این درس شامل مفاهیم پایه و آموزش های مرتبط با آن است.',
+          order: 1,
+          status: randomBool(0.8) ? 'PUBLIC' : 'PRIVATE',
+          duration: randomInt(10, 60), // minutes
+          file: new mongoose.Types.ObjectId('68b162433a6144002f4ad48f'), // video
+        },
+        {
+          title: 'درس 1: مفاهیم پایه',
+          description: 'این درس شامل مفاهیم پایه و آموزش های مرتبط با آن است.',
+          order: 1,
+          status: randomBool(0.8) ? 'PUBLIC' : 'PRIVATE',
+          duration: randomInt(10, 60), // minutes
+          file: new mongoose.Types.ObjectId('68b162433a6144002f4ad48f'), // video
+        },
+      ],
     });
   }
   return objects;
@@ -120,7 +178,7 @@ const seedCourses = async () => {
     await mongoose.connect(process.env.MONGODB_URL || 'mongodb://127.0.0.1:27017/yourdbname');
 
     // Clear existing courses (optional: filter if needed)
-    // await Course.deleteMany({});
+    await Course.deleteMany({});
     console.log('🗑️  Existing courses cleared.');
 
     const courses = [];

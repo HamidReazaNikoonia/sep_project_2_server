@@ -13,7 +13,7 @@ const Ticket = require('../domain/Ticket/ticket.model'); // Adjust path as neede
 // const { ticketReplySchema } = require('../domain/Ticket/ticket.model'); // Or extract from Ticket model if defined separately
 
 // Provided IDs
-const USER_IDS = ['67976d05a41ee135e561b809', '679d440c18c8446a24186c36', '68467788186e0cb691a16f83'];
+const USER_IDS = ['68526d430cec9186a98c07bb'];
 
 const COURSE_IDS = ['6843b58fd8e1902c7d162e75', '6843b676d8e1902c7d162e8c', '6843cabec8b36b2417f13236'];
 
@@ -178,7 +178,7 @@ const seedTickets = async () => {
         replies,
         assigned_to: randomBool(0.7) ? new mongoose.Types.ObjectId(adminId) : null,
         is_read_by_admin,
-        is_read_by_user: true,
+        is_read_by_user: false,
         last_reply_at,
         last_reply_by,
         resolved_at,

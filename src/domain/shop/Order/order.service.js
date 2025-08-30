@@ -257,7 +257,7 @@ const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
   // check if cart items contain `Product` or just courses
   // if cart items are course, we dont need to get Shipping Address from user
   // check if `Product` Exist in the cartitems
-  //const hasProductItemProperty = cart.cartItem.some(item => 'productId' in item);
+  // const hasProductItemProperty = cart.cartItem.some(item => 'productId' in item);
 
   let hasProductItemProperty = false;
 
@@ -341,14 +341,15 @@ const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
 
   // Calculate Total Price
   const tprice = calculateTotalPrice(validCourseAndProduct);
-  const TAX_CONSTANT = tprice * 0.08; // Assuming 8% tax rate;
+  const TAX_CONSTANT = Math.round(tprice * 0.08); // Assuming 8% tax rate;
+  // Math.round(totalPriceValue * 0.08);
 
   // return validCourseAndProduct;
 
   const newOrder = await Order.create({
     customer: user.id,
     products: validCourseAndProduct,
-    ...(shippingAddress && {shippingAddress: shippingAddress}),
+    ...(shippingAddress && { shippingAddress }),
     paymentMethod: 'zarinpal',
     reference: refrenceId,
     total: tprice,

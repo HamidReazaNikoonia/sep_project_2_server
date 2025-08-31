@@ -44,6 +44,7 @@ module.exports = {
       useCreateIndex: true,
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      // retryWrites: false,
     },
   },
   jwt: {

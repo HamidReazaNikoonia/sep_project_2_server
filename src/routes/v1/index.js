@@ -45,6 +45,9 @@ const notificationRoute = require('../../domain/Notification/notification.route'
 // Tickets Routes
 const ticketRoute = require('../../domain/Ticket/ticket.route');
 
+// Blog Routes
+const blogRoute = require('../../domain/Blog/blog.route');
+
 const router = express.Router();
 
 const defaultRoutes = [
@@ -135,6 +138,10 @@ const defaultRoutes = [
   {
     path: '/notification',
     route: notificationRoute,
+  },
+  {
+    path: '/blog',
+    route: blogRoute,
   },
   {
     path: '/ticket',

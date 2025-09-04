@@ -14,9 +14,10 @@ const createBlog = {
 const getBlogList = {
   query: Joi.object().keys({
     q: Joi.string(),
+    search: Joi.string(),
     tags: Joi.alternatives().try(Joi.string(), Joi.array().items(Joi.string())),
-    from_date: Joi.date(),
-    to_date: Joi.date(),
+    created_from_date: Joi.date(),
+    created_to_date: Joi.date(),
     author: Joi.string().custom(objectId),
     _id: Joi.string().custom(objectId),
     page: Joi.number().min(1),

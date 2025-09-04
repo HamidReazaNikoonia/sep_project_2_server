@@ -59,6 +59,7 @@ const blogSchema = new mongoose.Schema(
 // Add plugins for JSON transformation and pagination
 blogSchema.plugin(toJSON);
 blogSchema.plugin(paginate);
+blogSchema.plugin(require('mongoose-autopopulate'));
 
 // Pre-save middleware to calculate reading time
 blogSchema.pre('save', function (next) {

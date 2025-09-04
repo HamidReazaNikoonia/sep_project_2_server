@@ -52,11 +52,12 @@ const buildBlogFilter = (queryParams) => {
   const filter = {};
 
   // Search query for title, content, sub_title
-  if (queryParams.q) {
+  const searchQueryParams = queryParams.q || queryParams.search || null;
+  if (searchQueryParams) {
     filter.$or = [
-      { title: { $regex: queryParams.q, $options: 'i' } },
-      { content: { $regex: queryParams.q, $options: 'i' } },
-      { sub_title: { $regex: queryParams.q, $options: 'i' } },
+      { title: { $regex: searchQueryParams, $options: 'i' } },
+      { content: { $regex: searchQueryParams, $options: 'i' } },
+      { sub_title: { $regex: searchQueryParams, $options: 'i' } },
     ];
   }
 
@@ -67,13 +68,13 @@ const buildBlogFilter = (queryParams) => {
   }
 
   // Date range filter
-  if (queryParams.from_date || queryParams.to_date) {
+  if (queryParams.created_from_date || queryParams.created_to_date) {
     filter.createdAt = {};
-    if (queryParams.from_date) {
-      filter.createdAt.$gte = new Date(queryParams.from_date);
+    if (queryParams.created_from_date) {
+      filter.createdAt.$gte = new Date(queryParams.created_from_date);
     }
-    if (queryParams.to_date) {
-      filter.createdAt.$lte = new Date(queryParams.to_date);
+    if (queryParams.created_to_date) {
+      filter.createdAt.$lte = new Date(queryParams.created_to_date);
     }
   }
 

@@ -73,6 +73,11 @@ const coachSchema = new Schema({
       },
     },
   ],
+  featured: {
+    type: Boolean,
+    default: false,
+  },
+  tags: [String],
   coach_Information: {
     father_name: String,
     national_code: String,

@@ -9,6 +9,7 @@ const Coach = require('./coach.model');
 const CouchCourseProgram = require('../Admin/coach/coachCourseProgram/coach_course_program.model');
 const Transaction = require('../Transaction/transaction.model');
 const { classProgramModel } = require('../Course_Session/classProgram.model');
+const { Course } = require('../Course/course.model');
 
 // Service
 const ZarinpalCheckout = require('../../services/payment');
@@ -105,11 +106,20 @@ const getAllCoaches = async (filter, options) => {
 
 // Get a specific coach by ID
 const getCoachById = async (id) => {
-  const coach = await Coach.findById(id).populate('user_id', 'name');
+  const coach = await Coach.findById(id);
   if (!coach) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Coach not found');
   }
-  return coach;
+
+  // find coach program and courses
+  const coachProgram = await classProgramModel.find({ coach: id });
+  const coachCourses = await Course.find({ coach: id });
+
+  return {
+    coach,
+    coachProgram,
+    coachCourses,
+  };
 };
 
 // get Coach Course Program

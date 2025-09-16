@@ -11,6 +11,8 @@ const coachCourseProgramController = require('./courseProgress.controller');
 // Get all coaches
 router.route('/').get(coachController.getAllCoaches).post(coachController.createCoach);
 
+router.get('/specific/:coachId', coachController.getCoachById);
+
 // USER ROUTES
 router.patch(
   '/complete_account/:coachId',

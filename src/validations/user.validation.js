@@ -26,7 +26,7 @@ const createUser = {
     address: Joi.string(),
     job_title: Joi.string(),
     mariage_status: Joi.string().valid('single', 'married', 'widowed', 'divorced'),
-    wallet: Joi.number().min(0).max(100000000),
+    wallet_amount: Joi.number().min(0).max(100000000),
     gender: Joi.string().valid('W', 'M').required(),
     isVerified: Joi.boolean(),
   }),

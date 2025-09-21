@@ -6,11 +6,7 @@ const createTicket = {
     title: Joi.string().trim().required().min(3).max(200),
     description: Joi.string().trim().required().min(10).max(2000),
     program_id: Joi.string().custom(objectId).optional(),
-    program_type: Joi.string().valid('course', 'course_session').when('program_id', {
-      is: Joi.exist(),
-      then: Joi.required(),
-      otherwise: Joi.forbidden(),
-    }),
+    program_type: Joi.string().valid('course', 'course_session').optional(),
     course_id: Joi.string().custom(objectId).optional(),
     priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
     category: Joi.string()

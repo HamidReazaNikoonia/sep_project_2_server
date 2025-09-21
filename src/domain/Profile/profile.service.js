@@ -9,6 +9,7 @@ const UserModel = require('../../models/user.model');
 
 const { Order } = require('../shop/Order/order.model');
 const { Course } = require('../Course/course.model');
+const courseSessionOrderModel = require('../Course_Session/courseSession.order.model');
 
 // create Profile Service
 const createProfile = async (userId) => {
@@ -35,6 +36,16 @@ const getProfile = async (userId) => {
     }
   }
 
+  // Get enrolled user Course Session Profile
+  const userCourseSessionPrograms = await courseSessionOrderModel.find({ userId }).populate({
+    path: 'classProgramId',
+    populate: {
+      path: 'course',
+      select: 'title sub_title _id course_status',
+    },
+    select: 'program_type sessions status _id',
+  });
+
   // eslint-disable-next-line no-console
   console.log({ UserOrders });
 
@@ -47,7 +58,7 @@ const getProfile = async (userId) => {
   if (!profile) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Profile not found');
   }
-  return { profile, orders: UserOrders, courses };
+  return { profile, orders: UserOrders, courses, programs: userCourseSessionPrograms };
 };
 
 const updateProfile = async (userId, updateData) => {

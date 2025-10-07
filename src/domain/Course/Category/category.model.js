@@ -11,10 +11,15 @@ const categorySchema = mongoose.Schema(
     },
     parent: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Category',
+      ref: 'Course_Category',
       default: null,
+      // autopopulate: true,
     },
     path: {
+      type: String,
+      index: true,
+    },
+    path_name: {
       type: String,
       index: true,
     },
@@ -36,6 +41,8 @@ const categorySchema = mongoose.Schema(
 categorySchema.plugin(toJSON);
 categorySchema.plugin(paginate);
 
+categorySchema.plugin(require('mongoose-autopopulate'));
+
 // Pre-save hook to set path and level
 categorySchema.pre('save', async function (next) {
   const category = this;
@@ -45,9 +52,11 @@ categorySchema.pre('save', async function (next) {
       const parent = await category.constructor.findById(category.parent);
       category.level = parent.level + 1;
       category.path = parent.path ? `${parent.path},${category._id}` : `${parent._id},${category._id}`;
+      category.path_name = parent.path_name ? `${parent.path_name},${category.name}` : `${parent.name},${category.name}`;
     } else {
       category.level = 0;
       category.path = category._id.toString();
+      category.path_name = category.name;
     }
   }
 

@@ -49,7 +49,7 @@ router
   .get(auth(), courseController.getOrdersOfProgramByIdForAdmin)
   .patch(auth(), courseController.updateOrderStatus);
 
-router.route('/admin/program/:userId').get(courseController.getAllProgramsOfSpecificUser);
+router.route('/admin/user-program/:userId').get(courseController.getAllProgramsOfSpecificUser);
 
 // router.post('/apply/:course_id', courseController.applyForCourse); // NEW ROUTE
 

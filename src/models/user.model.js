@@ -223,6 +223,7 @@ const userSchema = mongoose.Schema(
       type: String,
       required: false,
       unique: true,
+      sparse: true,
     },
     referred_by: {
       type: mongoose.Schema.Types.ObjectId,

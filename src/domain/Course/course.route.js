@@ -26,6 +26,10 @@ router.get('/:slug', courseController.getCourseBySlugOrId);
 // Update a course
 router.put('/:course_id', courseController.updateCourse);
 
+// update or Add New Sample Media && Course Objects for admin
+router.post('/:course_id/sample-media', courseController.updateOrAddNewSampleMedia);
+router.post('/:course_id/course-objects', courseController.updateOrAddNewCourseObjects);
+
 // Delete a course
 router.delete('/:course_id', courseController.deleteCourse);
 

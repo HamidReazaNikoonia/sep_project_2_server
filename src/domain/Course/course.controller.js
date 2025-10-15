@@ -74,6 +74,33 @@ const updateCourse = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(updatedCourse);
 });
 
+// update or Add New Sample Media for admin
+const updateOrAddNewSampleMedia = catchAsync(async (req, res) => {
+  const courseId = req.params.course_id;
+  const updatedData = req.body;
+
+  if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Course not found or not valid');
+  }
+
+  if (!updatedData) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid sample media data');
+  }
+
+  const updatedCourse = await courseService.updateOrAddNewSampleMedia(courseId, updatedData);
+  res.status(httpStatus.OK).send(updatedCourse);
+});
+
+// update or Add New Course Objects for admin
+
+const updateOrAddNewCourseObjects = catchAsync(async (req, res) => {
+  const courseId = req.params.course_id;
+  const updatedData = req.body;
+
+  const updatedCourse = await courseService.updateOrAddNewCourseObjects(courseId, updatedData);
+  res.status(httpStatus.OK).send(updatedCourse);
+});
+
 const deleteCourse = catchAsync(async (req, res) => {
   const courseId = req.params.course_id;
 
@@ -81,10 +108,7 @@ const deleteCourse = catchAsync(async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 });
 
-
-
 // Get Private Course files
-
 
 const getCoursePrivateFile = catchAsync(async (req, res) => {
   const { fileId } = req.params;
@@ -199,6 +223,8 @@ module.exports = {
   createCourse,
   applyForCourse,
   updateCourse,
+  updateOrAddNewSampleMedia,
+  updateOrAddNewCourseObjects,
   deleteCourse,
   getCoursePrivateFile,
   // categories

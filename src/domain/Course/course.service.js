@@ -3,6 +3,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const httpStatus = require('http-status');
+const mongoose = require('mongoose');
 const { Course, CourseCategory, SubCategory } = require('./course.model');
 const APIFeatures = require('../../utils/APIFeatures');
 const User = require('../../models/user.model'); // Assuming User model exists
@@ -200,6 +201,97 @@ const updateCourse = async (courseId, updatedData) => {
   return course;
 };
 
+/**
+ * Update Sample media on course Document
+ *  If on the req.body we have `id` property, it means we should
+ * find selected sample media from course which finded by courseId and
+ * then update that specific sample media
+ *
+ * If on req.body, `id` not exist, it means we should add new sample_media
+ * on course
+ */
+
+const updateOrAddNewSampleMedia = async (courseId, updatedData) => {
+  const course = await Course.findById(courseId);
+  if (!course) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Course not found');
+  }
+
+  if (updatedData.id) {
+    const sampleMedia = course.sample_media.find((media) => media._id?.toString() === updatedData.id?.toString());
+    if (!sampleMedia) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Sample media not found');
+    }
+
+    const updatedSampleMedia = {};
+
+    if (updatedData.file) {
+      if (!mongoose.Types.ObjectId.isValid(updatedData.file)) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'File not found');
+      }
+
+      updatedSampleMedia.file = updatedData.file;
+    }
+
+    if (updatedData.media_type) {
+      updatedSampleMedia.media_type = updatedData.media_type;
+    }
+
+    if (updatedData.media_title) {
+      updatedSampleMedia.media_title = updatedData.media_title;
+    }
+
+    // if (updatedData.url_address) {
+    //   updatedSampleMedia.url_address = updatedData.url_address;
+    // }
+
+    Object.assign(sampleMedia, updatedSampleMedia);
+
+    await course.save();
+    return course;
+  }
+
+  // Add new Sample media
+  if (!updatedData.id) {
+    if (!updatedData.file || !mongoose.Types.ObjectId.isValid(updatedData.file)) {
+      // const file = await Upload.findById(updatedData.file);
+      throw new ApiError(httpStatus.NOT_FOUND, 'File not found');
+    }
+
+    course.sample_media.push(updatedData);
+  }
+
+  await course.save();
+  return course;
+};
+/**
+ * Update Course Objects on course Document
+ *
+ *  If on the req.body we have `id` property, it means we should
+ * find selected course objects from course which finded by courseId and
+ * then update that specific course objects
+ */
+const updateOrAddNewCourseObjects = async (courseId, updatedData) => {
+  const course = await Course.findById(courseId);
+  if (!course) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Course not found');
+  }
+
+  if (updatedData.id) {
+    const courseObjects = course.course_objects.find((objects) => objects.id === updatedData.id);
+    if (!courseObjects) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Course objects not found');
+    }
+  }
+
+  if (!updatedData.id) {
+    course.course_objects.push(updatedData);
+  }
+
+  await course.save();
+  return course;
+};
+
 const deleteCourse = async (courseId) => {
   const course = await Course.findById(courseId);
   if (!course) {
@@ -309,6 +401,8 @@ module.exports = {
   applyForCourse,
   deleteCourse,
   updateCourse,
+  updateOrAddNewSampleMedia,
+  updateOrAddNewCourseObjects,
   sendFileDirectly,
   verifyCourseAccess,
   // categories

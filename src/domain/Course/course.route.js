@@ -28,6 +28,21 @@ router.put('/:course_id', courseController.updateCourse);
 
 // update or Add New Sample Media && Course Objects for admin
 router.post('/:course_id/sample-media', courseController.updateOrAddNewSampleMedia);
+
+/* User Want Create New Course Object
+  // Case: updatedData !== id
+  // cretae new course_object without lessons
+  // ----
+
+  // User Want Update specific course Object data ( exclude lessons )
+  // Case: (updatedData.id && controller === update_course_object)
+
+  // User want Add new Lesson to Specific Course Object
+  // Case: (updatedData.id && controller === add_new_lesson)
+
+  // User Want Delete Lesson from Specific Course Object
+  // Case: (updatedData.id && controller === delete_lesson && lesson_id)
+*/
 router.post('/:course_id/course-objects', courseController.updateOrAddNewCourseObjects);
 
 // Delete a course

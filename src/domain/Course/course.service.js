@@ -277,15 +277,99 @@ const updateOrAddNewCourseObjects = async (courseId, updatedData) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Course not found');
   }
 
-  if (updatedData.id) {
-    const courseObjects = course.course_objects.find((objects) => objects.id === updatedData.id);
-    if (!courseObjects) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Course objects not found');
+  // Senario 1  => **  User Want Create New Course Object **
+  // Case: updatedData !== id
+  // Note: cretae new course_object without lessons
+  if (!updatedData.id) {
+    // validate required property
+    if (!updatedData.subject_title || !updatedData.order || !updatedData.status || !updatedData.duration) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Required properties are missing');
     }
+
+    const newCourseObject = {
+      subject_title: updatedData.subject_title,
+      description: updatedData.description,
+      order: updatedData.order,
+      status: updatedData.status,
+      duration: updatedData.duration,
+      ...(updatedData.files && { files: updatedData.files }),
+    };
+    course.course_objects.push(newCourseObject);
   }
 
-  if (!updatedData.id) {
-    course.course_objects.push(updatedData);
+  // Senario 2  => **  User Want Update specific course Object data ( exclude lessons ) **
+  // Case: (updatedData.id && updatedData.controller === update_course_object)
+  if (updatedData.id && updatedData.controller === 'update_course_object') {
+    const selectedCourseObject = course.course_objects.find(
+      (objects) => objects._id.toString() === updatedData.id.toString()
+    );
+    if (!selectedCourseObject) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Course objects not found');
+    }
+
+    const updatedCourseObject = {
+      ...(updatedData.subject_title && { subject_title: updatedData.subject_title }),
+      ...(updatedData.description && { description: updatedData.description }),
+      ...(updatedData.order && { order: updatedData.order }),
+      ...(updatedData.status && { status: updatedData.status }),
+      ...(updatedData.duration && { duration: updatedData.duration }),
+      ...(updatedData.files && { files: updatedData.files }),
+    };
+
+    Object.assign(selectedCourseObject, updatedCourseObject);
+    // await course.save();
+    // return course;
+  }
+
+  // Senario 3  => ** User want Add new Lesson to Specific Course Object **
+  // Case: (updatedData.id && controller === add_new_lesson)
+  if (updatedData.id && updatedData.controller === 'add_new_lesson') {
+    const selectedCourseObject = course.course_objects.find(
+      (objects) => objects._id.toString() === updatedData.id.toString()
+    );
+    if (!selectedCourseObject) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Course objects not found');
+    }
+
+    // validate new lesson data
+    if (!updatedData.title || !updatedData.order || !updatedData.status || !updatedData.duration || !updatedData.file) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Required properties are missing');
+    }
+
+    const newLesson = {
+      title: updatedData.title,
+      order: updatedData.order,
+      status: updatedData.status,
+      duration: updatedData.duration,
+      file: updatedData.file,
+      ...(updatedData.description && { description: updatedData.description }),
+    };
+
+    selectedCourseObject.lessons.push(newLesson);
+    // await course.save();
+    // return course;
+  }
+
+  // Senario 4  => ** User want Delete Lesson from Specific Course Object **
+  // Case: (updatedData.id && controller === delete_lesson && lesson_id)
+  if (updatedData.id && updatedData.controller === 'delete_lesson' && updatedData.lesson_id) {
+    const selectedCourseObject = course.course_objects.find(
+      (objects) => objects._id.toString() === updatedData.id.toString()
+    );
+    if (!selectedCourseObject) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Course objects not found');
+    }
+
+    // validate lesson_id
+    if (!mongoose.Types.ObjectId.isValid(updatedData.lesson_id)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Lesson id is required');
+    }
+
+    selectedCourseObject.lessons = selectedCourseObject.lessons.filter(
+      (lesson) => lesson._id.toString() !== updatedData.lesson_id.toString()
+    );
+    // await course.save();
+    // return course;
   }
 
   await course.save();

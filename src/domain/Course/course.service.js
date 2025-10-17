@@ -252,13 +252,22 @@ const updateOrAddNewSampleMedia = async (courseId, updatedData) => {
   }
 
   // Add new Sample media
-  if (!updatedData.id) {
+  if (!updatedData.id && !updatedData.delete_id) {
     if (!updatedData.file || !mongoose.Types.ObjectId.isValid(updatedData.file)) {
       // const file = await Upload.findById(updatedData.file);
       throw new ApiError(httpStatus.NOT_FOUND, 'File not found');
     }
 
     course.sample_media.push(updatedData);
+  }
+
+  // delete sample media
+  if (updatedData.delete_id) {
+    const sampleMedia = course.sample_media.find((media) => media._id?.toString() === updatedData.delete_id?.toString());
+    if (!sampleMedia) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Sample media not found');
+    }
+    course.sample_media = course.sample_media.filter((media) => media._id?.toString() !== updatedData.delete_id?.toString());
   }
 
   await course.save();

@@ -291,7 +291,7 @@ const updateOrAddNewCourseObjects = async (courseId, updatedData) => {
   // Note: cretae new course_object without lessons
   if (!updatedData.id) {
     // validate required property
-    if (!updatedData.subject_title || !updatedData.order || !updatedData.status || !updatedData.duration) {
+    if (!updatedData.subject_title || !updatedData.order || !updatedData.duration) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Required properties are missing');
     }
 
@@ -299,7 +299,7 @@ const updateOrAddNewCourseObjects = async (courseId, updatedData) => {
       subject_title: updatedData.subject_title,
       description: updatedData.description,
       order: updatedData.order,
-      status: updatedData.status,
+      // status: updatedData.status,
       duration: updatedData.duration,
       ...(updatedData.files && { files: updatedData.files }),
     };
@@ -320,7 +320,7 @@ const updateOrAddNewCourseObjects = async (courseId, updatedData) => {
       ...(updatedData.subject_title && { subject_title: updatedData.subject_title }),
       ...(updatedData.description && { description: updatedData.description }),
       ...(updatedData.order && { order: updatedData.order }),
-      ...(updatedData.status && { status: updatedData.status }),
+      // ...(updatedData.status && { status: updatedData.status }),
       ...(updatedData.duration && { duration: updatedData.duration }),
       ...(updatedData.files && { files: updatedData.files }),
     };
@@ -381,6 +381,17 @@ const updateOrAddNewCourseObjects = async (courseId, updatedData) => {
     // return course;
   }
 
+  // Senario 5  => ** User want Delete Specific Course Object **
+  // Case: (updatedData.id && controller === delete_course_object )
+  if (updatedData.id && updatedData.controller === 'delete_course_object') {
+    const selectedCourseObject = course.course_objects.find(
+      (objects) => objects._id.toString() === updatedData.id.toString()
+    );
+    if (!selectedCourseObject) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Course objects not found');
+    }
+    course.course_objects = course.course_objects.filter((objects) => objects._id.toString() !== updatedData.id.toString());
+  }
   await course.save();
   return course;
 };

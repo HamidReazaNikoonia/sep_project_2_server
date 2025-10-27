@@ -90,31 +90,162 @@ const validateProducts = async (products) => {
   return validProducts;
 };
 
-const getAllOrders = async ({ query }) => {
-  console.log(query);
-  console.log('-------query------------');
+const getAllOrders = async ({ filter, options }) => {
+  // Build MongoDB aggregation pipeline
+  const pipeline = [];
 
-  const features = new APIFeatures(Order.find(), query)
-    .filter()
-    .search()
-    .sort()
-    .limitFields()
-    .paginate();
+  // Stage 1: Lookup to join with User collection for customer search
+  if (filter.customer) {
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'customer',
+        foreignField: '_id',
+        as: 'customerData'
+      }
+    });
 
-  const orders = await features.query;
-  const total = await new APIFeatures(Order.find(), query)
-    .filter()
-    .search()
-    .count().total;
+    pipeline.push({
+      $unwind: {
+        path: '$customerData',
+        preserveNullAndEmptyArrays: true
+      }
+    });
+  }
 
-  return { data: { total, count: orders.length, orders } };
+  // Stage 2: Build match conditions
+  const matchConditions = {
+    soft_delete: false
+  };
 
-  // const features = new APIFeatures(Order.find(), Order, query).filter().sort().limitFields().paginate();
-  // const orders = await features.query;
-  // const { total } = await features.count();
-  // console.log('---total mother fucker -----');
-  // console.log(total);
-  // return { data: orders, total };
+  // 1. Filter by order status
+  if (filter.order_status) {
+    matchConditions.status = filter.order_status;
+  }
+
+  // 2. Filter by payment status
+  if (filter.payment_status) {
+    matchConditions.paymentStatus = filter.payment_status;
+  }
+
+  // 3. Filter by customer ID
+  if (filter.customer_id) {
+    matchConditions.customer = mongoose.Types.ObjectId(filter.customer_id);
+  }
+
+  // 4. Search customer by name or mobile
+  if (filter.customer) {
+    const customerSearchRegex = new RegExp(filter.customer, 'i');
+    matchConditions.$or = [
+      { 'customerData.first_name': customerSearchRegex },
+      { 'customerData.last_name': customerSearchRegex },
+      { 'customerData.mobile': customerSearchRegex }
+    ];
+  }
+
+  // 5. Other specific filters
+  if (filter.order_id) {
+    matchConditions._id = mongoose.Types.ObjectId(filter.order_id);
+  }
+
+  if (filter.transaction_id) {
+    matchConditions.transactionId = mongoose.Types.ObjectId(filter.transaction_id);
+  }
+
+  if (filter.reference) {
+    matchConditions.reference = filter.reference;
+  }
+
+  // 6. Date range filters for createdAt
+  if (filter.created_from_date || filter.created_to_date) {
+    matchConditions.createdAt = {};
+
+    if (filter.created_from_date) {
+      matchConditions.createdAt.$gte = new Date(filter.created_from_date);
+    }
+
+    if (filter.created_to_date) {
+      matchConditions.createdAt.$lte = new Date(filter.created_to_date);
+    }
+  }
+
+  // 7. Date range filters for updatedAt
+  if (filter.updated_from_date || filter.updated_to_date) {
+    matchConditions.updatedAt = {};
+
+    if (filter.updated_from_date) {
+      matchConditions.updatedAt.$gte = new Date(filter.updated_from_date);
+    }
+
+    if (filter.updated_to_date) {
+      matchConditions.updatedAt.$lte = new Date(filter.updated_to_date);
+    }
+  }
+
+  pipeline.push({ $match: matchConditions });
+
+  // Stage 3: Remove temporary customerData field if it was added
+  if (filter.customer) {
+    pipeline.push({
+      $project: {
+        customerData: 0
+      }
+    });
+  }
+
+  // Stage 4: Sorting
+  let sortStage = {};
+  if (options.sortBy) {
+    const sortingCriteria = {};
+    options.sortBy.split(',').forEach((sortOption) => {
+      const [key, order] = sortOption.split(':');
+      sortingCriteria[key] = order === 'desc' ? -1 : 1;
+    });
+    sortStage = sortingCriteria;
+  } else {
+    sortStage = { createdAt: 1 };
+  }
+
+  pipeline.push({ $sort: sortStage });
+
+  // Stage 5: Count total documents (before pagination)
+  const countPipeline = [...pipeline, { $count: 'total' }];
+
+  // Stage 6: Pagination
+  const limit = options.limit && parseInt(options.limit, 10) > 0 ? parseInt(options.limit, 10) : 10;
+  const page = options.page && parseInt(options.page, 10) > 0 ? parseInt(options.page, 10) : 1;
+  const skip = (page - 1) * limit;
+
+  pipeline.push({ $skip: skip });
+  pipeline.push({ $limit: limit });
+
+  // Execute both pipelines
+  const [countResult, results] = await Promise.all([
+    Order.aggregate(countPipeline),
+    Order.aggregate(pipeline)
+  ]);
+
+  // Populate references after aggregation
+  const populatedResults = await Order.populate(results, [
+    { path: 'customer' },
+    { path: 'transactionId' },
+    { path: 'products.product' },
+    { path: 'products.course' },
+    { path: 'shippingAddress' },
+    { path: 'billingAddress' }
+  ]);
+
+  const totalResults = countResult.length > 0 ? countResult[0].total : 0;
+  const totalPages = Math.ceil(totalResults / limit);
+
+  // Return in the same format as paginate plugin
+  return {
+    results: populatedResults,
+    page,
+    limit,
+    totalPages,
+    totalResults
+  };
 };
 
 const getAllUsersOrders = async ({ user, query }) => {

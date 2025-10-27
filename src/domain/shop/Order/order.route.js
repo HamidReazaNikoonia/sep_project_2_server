@@ -14,7 +14,7 @@ const {
   checkoutOrder,
   getAllUserAddress,
   createAddressByUser,
-  updateUserAddress
+  updateUserAddress,
 } = require('./order.controller');
 const { createOrder: createOrderValidation } = require('./order.validation');
 
@@ -39,14 +39,12 @@ orderRouteForAdmin
 
 orderRoute.route('/').get(auth(), getAllUserOrders).post(auth(), createOrderByUser);
 
-
-//Address Routes
+// Address Routes
 orderRoute.route('/shipping_address').get(auth(), getAllUserAddress).post(auth(), createAddressByUser);
 orderRoute.route('/shipping_address/:shippingAddressId').put(auth(), updateUserAddress);
 
 orderRoute.route('/:orderId').get(auth(), getUserOrderById); // Retrieve a specific order by ID
 
-
-orderRoute.route('/:orderId/checkout').get(checkoutOrder)
+orderRoute.route('/:orderId/checkout').get(checkoutOrder);
 
 module.exports = { orderRouteForAdmin, orderRoute };

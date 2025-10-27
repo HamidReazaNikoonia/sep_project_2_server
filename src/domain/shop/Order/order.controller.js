@@ -1,5 +1,6 @@
 const httpStatus = require('http-status');
 const catchAsync = require('../../../utils/catchAsync');
+const pick = require('../../../utils/pick');
 
 // services
 const orderService = require('./order.service');
@@ -30,7 +31,23 @@ const getAllOrders = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'User Not Exist');
   }
 
-  const result = await orderService.getAllOrders({ query: req.query });
+  const filter = pick(req.query, [
+    'order_status',
+    'payment_status',
+    'transaction_id',
+    'order_id',
+    'reference',
+    'customer',
+    'customer_id',
+    'created_from_date',
+    'created_to_date',
+    'updated_from_date',
+    'updated_to_date',
+  ]);
+  // const filter = omit(req.query, ['sortBy', 'limit', 'page']);
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+
+  const result = await orderService.getAllOrders({ filter, options });
   res.status(httpStatus.OK).send(result);
 });
 

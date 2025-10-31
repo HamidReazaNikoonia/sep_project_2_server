@@ -17,6 +17,11 @@ const couponCodeSchema = new Schema(
       required: true,
       enum: ['REFERRAL', 'DISCOUNT'],
     },
+    coupon_variant: {
+      type: String,
+      enum: ['COURSE_SESSION', 'ORDER'],
+      required: true,
+    },
     discount_type: {
       type: String,
       enum: ['PERCENTAGE', 'FIXED_AMOUNT'],

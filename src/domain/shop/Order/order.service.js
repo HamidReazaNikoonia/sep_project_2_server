@@ -182,6 +182,60 @@ const getAllOrders = async ({ filter, options }) => {
     }
   }
 
+  // 8. Existence filters
+  // Check if order has products (physical products)
+  if (filter.have_product === 'true' || filter.have_product === true) {
+    matchConditions['products.product'] = { $exists: true, $ne: null };
+  } else if (filter.have_product === 'false' || filter.have_product === false) {
+    matchConditions.$or = [
+      { 'products.product': { $exists: false } },
+      { 'products.product': null }
+    ];
+  }
+
+  // Check if order has courses
+  if (filter.have_course === 'true' || filter.have_course === true) {
+    matchConditions['products.course'] = { $exists: true, $ne: null };
+  } else if (filter.have_course === 'false' || filter.have_course === false) {
+    matchConditions.$or = [
+      { 'products.course': { $exists: false } },
+      { 'products.course': null }
+    ];
+  }
+
+  // Check if order has applied coupons
+  if (filter.have_coupon === 'true' || filter.have_coupon === true) {
+    matchConditions['appliedCoupons.0'] = { $exists: true };
+  } else if (filter.have_coupon === 'false' || filter.have_coupon === false) {
+    matchConditions.$or = [
+      { appliedCoupons: { $exists: false } },
+      { appliedCoupons: { $size: 0 } },
+      { appliedCoupons: [] }
+    ];
+  }
+
+  // Check if order has discount
+  if (filter.have_discount === 'true' || filter.have_discount === true) {
+    matchConditions.total_discount_price = { $gt: 0 };
+  } else if (filter.have_discount === 'false' || filter.have_discount === false) {
+    matchConditions.$or = [
+      { total_discount_price: { $exists: false } },
+      { total_discount_price: null },
+      { total_discount_price: 0 },
+      { total_discount_price: { $lte: 0 } }
+    ];
+  }
+
+  // Check if order has shipping address
+  if (filter.have_shipping === 'true' || filter.have_shipping === true) {
+    matchConditions.shippingAddress = { $exists: true, $ne: null };
+  } else if (filter.have_shipping === 'false' || filter.have_shipping === false) {
+    matchConditions.$or = [
+      { shippingAddress: { $exists: false } },
+      { shippingAddress: null }
+    ];
+  }
+
   pipeline.push({ $match: matchConditions });
 
   // Stage 3: Remove temporary customerData field if it was added
@@ -232,7 +286,8 @@ const getAllOrders = async ({ filter, options }) => {
     { path: 'products.product' },
     { path: 'products.course' },
     { path: 'shippingAddress' },
-    { path: 'billingAddress' }
+    { path: 'billingAddress' },
+    { path: 'appliedCoupons.couponId' },
   ]);
 
   const totalResults = countResult.length > 0 ? countResult[0].total : 0;

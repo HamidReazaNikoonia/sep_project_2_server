@@ -70,6 +70,37 @@ const orderSchema = mongoose.Schema(
       required: true,
       min: 0,
     },
+    final_order_price: {
+      type: Number,
+      required: false,
+    },
+    total_discount_price: {
+      type: Number,
+      required: false,
+    },
+    appliedCoupons: [
+      {
+        _id: false,
+        couponId: {
+          type: objectId,
+          ref: 'CouponCode',
+          required: true,
+        },
+        code: {
+          type: String,
+          required: true,
+        },
+        discountAmount: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+        discountType: {
+          type: String,
+          enum: ['PERCENTAGE', 'FIXED_AMOUNT'],
+        },
+      },
+    ],
     shippingAddress: {
       type: objectId,
       ref: 'Address',

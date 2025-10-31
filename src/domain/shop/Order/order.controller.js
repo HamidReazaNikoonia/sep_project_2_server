@@ -37,14 +37,19 @@ const getAllOrders = catchAsync(async (req, res) => {
     'transaction_id',
     'order_id',
     'reference',
-    'customer',
     'customer_id',
+    'customer',
     'created_from_date',
     'created_to_date',
     'updated_from_date',
     'updated_to_date',
+    // New filters
+    'have_product',
+    'have_course',
+    'have_coupon',
+    'have_discount',
+    'have_shipping',
   ]);
-  // const filter = omit(req.query, ['sortBy', 'limit', 'page']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
 
   const result = await orderService.getAllOrders({ filter, options });

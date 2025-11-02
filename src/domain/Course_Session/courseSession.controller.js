@@ -350,6 +350,18 @@ const createCourseSessionPackage = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(packages);
 });
 
+const updateCourseSessionPackage = catchAsync(async (req, res) => {
+  const { package_id } = req.params;
+  const packages = await courseSesshionService.updateCourseSessionPackage(package_id, req.body);
+  res.status(httpStatus.OK).send(packages);
+});
+
+const deleteCourseSessionPackage = catchAsync(async (req, res) => {
+  const { package_id } = req.params;
+  const packages = await courseSesshionService.deleteCourseSessionPackage(package_id);
+  res.status(httpStatus.OK).send(packages);
+});
+
 const getSpecificProgram = catchAsync(async (req, res) => {
   const { program_id } = req.params;
   const program = await courseSesshionService.getSpecificProgram(program_id);
@@ -578,6 +590,8 @@ module.exports = {
   // package
   getAllCourseSessionPackage,
   createCourseSessionPackage,
+  updateCourseSessionPackage,
+  deleteCourseSessionPackage,
   // Program
   getAllProgramsForUser,
   getAllProgramsForAdmin,

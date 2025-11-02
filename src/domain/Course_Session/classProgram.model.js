@@ -16,6 +16,7 @@ const sessionPackagesSchema = new mongoose.Schema({
   avatar: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Upload',
+    autopopulate: true,
   },
 });
 
@@ -230,6 +231,7 @@ const classProgramSchema = mongoose.Schema(
 classProgramSchema.plugin(toJSON);
 classProgramSchema.plugin(paginate);
 classProgramSchema.plugin(require('mongoose-autopopulate'));
+sessionPackagesSchema.plugin(require('mongoose-autopopulate'));
 
 // Indexes
 classProgramSchema.index({ course: 1 });

@@ -1068,16 +1068,27 @@ const getAllCourseSessionPackage = async () => {
 };
 
 const createCourseSessionPackage = async (requestBody) => {
-  const { title, price } = requestBody;
+  const { title, price, avatar } = requestBody;
 
   const createdPackage = await sessionPackageModel.create({
     title,
     price,
+    avatar,
   });
 
   return createdPackage;
 };
 
+const updateCourseSessionPackage = async (package_id, requestBody) => {
+  const { title, price, avatar } = requestBody;
+  const updatedPackage = await sessionPackageModel.findByIdAndUpdate(package_id, { title, price, avatar }, { new: true });
+  return updatedPackage;
+};
+
+const deleteCourseSessionPackage = async (package_id) => {
+  const deletedPackage = await sessionPackageModel.findByIdAndDelete(package_id);
+  return deletedPackage;
+};
 /**
  *
  *  Course Session Order Checkout
@@ -2884,6 +2895,8 @@ module.exports = {
   // packages
   getAllCourseSessionPackage,
   createCourseSessionPackage,
+  updateCourseSessionPackage,
+  deleteCourseSessionPackage,
   // order chekout
   createCourseSessionOrder,
   calculateOrderSummary,

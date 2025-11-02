@@ -352,9 +352,12 @@ const createCoach = async (requestBody) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Data Not Valid');
   }
 
-  requestBody.role = 'coach';
+  const req = {
+    ...requestBody,
+    role: 'coach',
+  };
 
-  const newCoach = await Coach.create(requestBody);
+  const newCoach = await Coach.create(req);
   return newCoach;
 };
 

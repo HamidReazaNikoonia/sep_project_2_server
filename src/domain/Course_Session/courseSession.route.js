@@ -21,6 +21,11 @@ router
   .get(courseController.getAllCourseSessionPackage)
   .post(courseController.createCourseSessionPackage);
 
+router
+  .route('/admin/course-session-package/:package_id')
+  .put(courseController.updateCourseSessionPackage)
+  .delete(courseController.deleteCourseSessionPackage);
+
 router.route('/admin/program/update-session/:program_id').post(auth(), courseController.implementNewSessionForClassProgram);
 
 router.route('/admin/program').get(auth(), courseController.getAllProgramsForAdmin);

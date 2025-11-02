@@ -55,6 +55,10 @@ const coachSchema = new Schema({
     type: String,
     default: 'none',
   },
+  permission: {
+    type: Boolean,
+    default: false,
+  },
   access_level_request: {
     type: String,
     default: 'none',
@@ -77,6 +81,8 @@ const coachSchema = new Schema({
     type: Boolean,
     default: false,
   },
+  description: String,
+  description_long: String,
   tags: [String],
   coach_Information: {
     father_name: String,

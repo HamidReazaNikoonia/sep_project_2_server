@@ -10,7 +10,25 @@ const createCouponCode = catchAsync(async (req, res) => {
 });
 
 const getCouponCodes = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['code', 'type', 'is_active']);
+  const filter = pick(req.query, [
+    'code',
+    'type',
+    'is_active',
+    'is_combined',
+    'valid_from',
+    'valid_until',
+    'discount_type',
+    'coupon_variant',
+    'createdAt',
+    'createdAt_from',
+    'createdAt_to',
+    'updatedAt',
+    'updatedAt_from',
+    'updatedAt_to',
+    'deletedAt',
+    'deletedAt_from',
+    'deletedAt_to',
+  ]);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await couponCodeService.queryCouponCodes(filter, options);
   res.send(result);

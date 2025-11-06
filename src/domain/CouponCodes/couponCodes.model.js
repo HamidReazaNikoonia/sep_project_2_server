@@ -19,7 +19,7 @@ const couponCodeSchema = new Schema(
     },
     coupon_variant: {
       type: String,
-      enum: ['COURSE_SESSION', 'ORDER'],
+      enum: ['COURSE_SESSION', 'ORDER', 'ALL'],
       required: true,
     },
     discount_type: {
@@ -76,6 +76,34 @@ const couponCodeSchema = new Schema(
         },
       },
     ],
+    applicable_coach: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Coach',
+      },
+    ],
+    except_courses: [
+      {
+        target_type: {
+          type: String,
+          enum: ['COURSE_SESSION', 'COURSE'],
+        },
+        target_id: {
+          type: Schema.Types.ObjectId,
+          // We don't specify a single ref here since it could be either type
+        },
+      },
+    ],
+    except_coach: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Coach',
+      },
+    ],
+    is_combined: {
+      type: Boolean,
+      default: true,
+    },
     description: {
       type: String,
       trim: true,

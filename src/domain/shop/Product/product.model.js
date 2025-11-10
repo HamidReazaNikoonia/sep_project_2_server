@@ -56,16 +56,6 @@ const collectionSchema = mongoose.Schema(
   }
 );
 
-// Category Schema
-const CategorySchema = mongoose.Schema(
-  {
-    name: { type: String, required: true },
-  },
-  {
-    timestamps: true,
-  }
-);
-
 // Create Product Schema
 const productSchema = mongoose.Schema(
   {
@@ -111,12 +101,13 @@ const productSchema = mongoose.Schema(
       type: String,
       required: false,
     },
-    category: {
-      type: objectId,
-      ref: 'Category',
-      required: false,
-      autopopulate: true,
-    },
+    product_category: [
+      {
+        type: objectId,
+        ref: 'Product_Category',
+        autopopulate: true,
+      },
+    ],
     average_rating: {
       type: Number,
       min: [1, 'Rating must be at least 1'],
@@ -200,7 +191,7 @@ productSchema.virtual('url').get(function () {
 
 // Inner Model
 const Collection = mongoose.model('Collection', collectionSchema);
-const Category = mongoose.model('Category', CategorySchema);
+// const Category = mongoose.model('Category', CategorySchema);
 const Product = mongoose.model('Product', productSchema);
 const ProductReview = mongoose.model('ProductReview', reviewSchema);
 
@@ -208,5 +199,4 @@ module.exports = {
   Product,
   ProductReview,
   Collection,
-  Category,
 };

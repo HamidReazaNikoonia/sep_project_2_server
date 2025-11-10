@@ -1,42 +1,21 @@
-const httpStatus = require('http-status');
-const mongoose = require('mongoose');
-const { Category } = require('../product.model');
-const ApiError = require('../../../../utils/ApiError');
+const Category = require('./category.model');
 
-const { ObjectId } = mongoose.Types;
-
-const createCategory = async (Data) => {
-  const category = new Category(Data);
-  await category.save();
+const createCategoryWithParent = async (name, parentId = null) => {
+  const category = await Category.create({ name, parent: parentId });
   return category;
 };
 
-const getCategories = async () => {
-  const category = await Category.find();
+const getFullPath = async (categoryId) => {
+  const category = await Category.findById(categoryId);
+  if (!category) return null;
 
-  if (!category) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Category Not Found');
-  }
+  if (!category.path) return [category];
 
-  return category;
-};
-
-const deleteCategoryById = async (collectionId) => {
-  if (!ObjectId.isValid(collectionId)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Collection ID');
-  }
-
-  const collection = await Category.findByIdAndDelete(collectionId);
-
-  if (!collection) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Collection Not Found');
-  }
-
-  return collection;
+  const pathIds = category.path.split(',');
+  return Category.find({ _id: { $in: pathIds } }).sort({ level: 1 });
 };
 
 module.exports = {
-  createCategory,
-  getCategories,
-  deleteCategoryById,
+  createCategoryWithParent,
+  getFullPath,
 };

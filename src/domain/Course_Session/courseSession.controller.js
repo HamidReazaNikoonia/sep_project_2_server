@@ -368,6 +368,12 @@ const getSpecificProgram = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(program);
 });
 
+const updateCourseSessionProgram = catchAsync(async (req, res) => {
+  const { program_id } = req.params;
+  const program = await courseSesshionService.updateCourseSessionProgram(program_id, req.body);
+  res.status(httpStatus.OK).send(program);
+});
+
 /**
  * Program Orders
  */
@@ -596,6 +602,7 @@ module.exports = {
   getAllProgramsForUser,
   getAllProgramsForAdmin,
   getSpecificProgram,
+  updateCourseSessionProgram,
   implementNewSessionForClassProgram,
   // Program Orders
   getAllOrdersOfProgramForAdmin,

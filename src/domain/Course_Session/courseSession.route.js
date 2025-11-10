@@ -29,7 +29,10 @@ router
 router.route('/admin/program/update-session/:program_id').post(auth(), courseController.implementNewSessionForClassProgram);
 
 router.route('/admin/program').get(auth(), courseController.getAllProgramsForAdmin);
-router.route('/admin/program/:program_id').get(auth(), courseController.getSpecificProgram);
+router
+  .route('/admin/program/:program_id')
+  .get(auth(), courseController.getSpecificProgram)
+  .put(auth(), courseController.updateCourseSessionProgram);
 
 /**
  * Program Management Routes

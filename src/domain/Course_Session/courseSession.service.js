@@ -841,6 +841,17 @@ const getSpecificProgram = async (programId) => {
   };
 };
 
+const updateCourseSessionProgram = async (programId, updateData) => {
+  const program = await classProgramModel.findById(programId);
+  if (!program) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Program not found');
+  }
+
+  Object.assign(program, updateData);
+  await program.save();
+  return program;
+};
+
 // const updateCourseSessionForAssignCoachAndTimeSlot = async (
 //   courseId,
 //   { coach_id, date, start_time, end_time, class_id, max_member_accept }
@@ -2883,6 +2894,7 @@ module.exports = {
   updateCourse,
   getAllProgramsOFSpecificCourse,
   getSpecificProgram,
+  updateCourseSessionProgram,
   // updateCourseSessionForAssignCoachAndTimeSlot,
   createClassProgram,
   sendFileDirectly,

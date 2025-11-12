@@ -10,6 +10,7 @@ const { Product } = require('../Product/product.model');
 const { Address } = require('./order.model');
 const cartModel = require('./../Cart/cart.model');
 const Transaction = require('../../Transaction/transaction.model');
+const { Course: courseModel } = require('../../Course/course.model');
 
 // Utils
 const ApiError = require('../../../utils/ApiError');
@@ -327,6 +328,186 @@ const getUserOrderById = async ({ orderId, user }) => {
   }
 
   return { data: order };
+};
+
+/**
+ * Calculate Order Summary for Admin
+ * @param {Object} params
+ * @param {Array} params.items - List of order items [{courseId, quantity, price}, {productId, quantity, price}]
+ * @param {Array} [params.couponCodes=[]] - List of coupon codes
+ * @returns {Promise<Object>}
+ */
+const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Items are required');
+  }
+
+  let hasProductItemProperty = false;
+
+  for (const item of items) {
+    if (item && item.productId !== undefined) {
+      hasProductItemProperty = true;
+      break; // Exit the loop early if the property is found
+    }
+  }
+
+  // Separate product and course items
+  const productItemsObj = items.filter((item) => item.productId);
+  const courseItemsObj = items.filter((item) => item.courseId);
+
+  // Map to expected format
+  const productsItems = productItemsObj.map((item) => ({
+    product: item.productId,
+    quantity: item.quantity,
+    price: item.price,
+  }));
+
+  const coursesItems = courseItemsObj.map((item) => ({
+    course: item.courseId,
+    quantity: item.quantity || 1,
+    price: item.price,
+  }));
+
+  // Loop over coursesItems and set the actual course document to the `course` property
+  // Collect all unique course IDs to fetch them in one query
+  const courseIdsToFetch = coursesItems.filter((item) => item.course).map((item) => item.course);
+
+  // Fetch all courses with coaches in one go
+  const foundCourses = await courseModel
+    .find({ _id: { $in: courseIdsToFetch } })
+    .populate('coach_id')
+    .lean(false); // .lean(false) to keep Mongoose documents if needed
+
+  // Build a map for fast lookup
+  const courseMap = {};
+  for (const courseDoc of foundCourses) {
+    courseMap[String(courseDoc._id)] = courseDoc;
+  }
+
+  // Assign the found course documents back to coursesItems
+  for (let i = 0; i < coursesItems.length; i++) {
+    if (coursesItems[i].course && courseMap[coursesItems[i].course.toString()]) {
+      coursesItems[i].course = courseMap[coursesItems[i].course.toString()];
+    }
+  }
+
+  //---------------------------
+  // Implement Products and validate product
+  // * Status Should be True and available
+  // * Check Quantity
+
+  let validCourseAndProduct = [];
+
+  if (coursesItems.length > 0) {
+    const validCourse = validateCourse(coursesItems);
+    validCourseAndProduct = [...validCourseAndProduct, ...validCourse];
+    // Object.assign(validCourseAndProduct, validCourse);
+  }
+
+  // Implement Products and validate product
+  // * Status Should be True and available
+  // * Check Quantity
+  if (productsItems.length > 0) {
+    const validProducts = await validateProducts(productsItems);
+    // return validProducts;
+    validCourseAndProduct = [...validCourseAndProduct, ...validProducts];
+    // Object.assign(validCourseAndProduct, validProducts);
+  }
+
+  if (!Array.isArray(validCourseAndProduct)) {
+    throw new ApiError(httpStatus.BAD_GATEWAY, 'System Could Not Retrive Product');
+  }
+  //---------------------------
+
+  // Calculate total price for products & courses
+  // Calculate Total Price
+  const tprice = calculateTotalPrice(validCourseAndProduct);
+  const TAX_CONSTANT = Math.round(tprice * 0.08); // Assuming 8% tax rate;
+  const CONSTANT_SHIPPING_AMOUNT = 10000;
+  let totalAmount = tprice + TAX_CONSTANT;
+
+  if (hasProductItemProperty) {
+    totalAmount += CONSTANT_SHIPPING_AMOUNT;
+  }
+
+  // Process Coupon Codes
+  let couponResult = {
+    validCoupons: [],
+    invalidCoupons: [],
+    totalDiscount: 0,
+  };
+
+  if (couponCodes && couponCodes.length > 0) {
+    // Extract unique coach IDs from courses
+    const coachIds = [];
+    if (validCourseAndProduct && validCourseAndProduct.length > 0) {
+      validCourseAndProduct.forEach((item) => {
+        if (item?.course && item?.course?.coach_id) {
+          // Assuming coach is stored in course object
+          const coachId = item?.course?.coach_id?._id || item?.course?.coach_id;
+          if (coachId && !coachIds.includes(coachId.toString())) {
+            coachIds.push(coachId);
+          }
+        }
+      });
+    }
+
+    // Prepare order items for coupon validation
+    const orderItems = {
+      products: productItemsObj.map((p) => p.productId),
+      courses: courseItemsObj.map((c) => c.courseId),
+      coaches: coachIds,
+    };
+
+    // Validate coupons
+    couponResult = await checkCoupon({
+      couponCodes,
+      order_variant: 'ORDER',
+      orderItems,
+    });
+
+    // Check minimum purchase amount for each valid coupon
+    const validCouponsAfterMinCheck = [];
+    couponResult.validCoupons.forEach((coupon) => {
+      if (totalAmount >= coupon.min_purchase_amount) {
+        validCouponsAfterMinCheck.push(coupon);
+      } else {
+        couponResult.invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: `Minimum purchase amount of ${coupon.min_purchase_amount} not met`,
+        });
+      }
+    });
+
+    // Calculate discount from valid coupons
+    if (validCouponsAfterMinCheck.length > 0) {
+      const discountResult = calculateCouponDiscount(validCouponsAfterMinCheck, totalAmount);
+      couponResult.totalDiscount = discountResult.totalDiscount;
+      totalAmount = discountResult.finalPrice;
+      couponResult.validCoupons = validCouponsAfterMinCheck;
+    }
+  }
+
+  return {
+    products: validCourseAndProduct,
+    total: tprice,
+    tax: TAX_CONSTANT,
+    totalAmount,
+    ...(hasProductItemProperty && { shippingAmount: CONSTANT_SHIPPING_AMOUNT }),
+    ...(couponCodes.length > 0 && {
+      couponInfo: {
+        validCoupons: couponResult.validCoupons.map((c) => ({
+          id: c._id,
+          code: c.code,
+          discount_type: c.discount_type,
+          discount_value: c.discount_value,
+        })),
+        invalidCoupons: couponResult.invalidCoupons,
+        totalDiscount: couponResult.totalDiscount,
+      },
+    }),
+  };
 };
 
 /**
@@ -1009,6 +1190,7 @@ module.exports = {
   updateOrder,
   deleteOrder,
   calculateOrderSummary,
+  calculateOrderSummaryForAdmin,
   checkoutOrder,
   createOrderByUser,
 };

@@ -7,6 +7,7 @@ const {
   getOrderById,
   createOrder,
   calculateOrderSummary,
+  calculateOrderSummaryForAdmin,
   createOrderByUser,
   updateOrder,
   deleteOrder,
@@ -27,6 +28,8 @@ orderRouteForAdmin
   .route('/')
   .get(auth(), getAllOrders) // Retrieve all orders of customers
   .post(auth(), validate(createOrderValidation), createOrder); // Create a new order By Admin
+
+orderRouteForAdmin.post('/calculate-order-summary-admin', auth(), calculateOrderSummaryForAdmin);
 
 orderRouteForAdmin
   .route('/:orderId')

@@ -166,6 +166,21 @@ const createOrderByUser = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(newOrder);
 });
 
+const calculateOrderSummaryForAdmin = catchAsync(async (req, res) => {
+  const { items, couponCodes = [] } = req.body;
+
+  if (!items || items.length === 0) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Items Not Defined In Request Body');
+  }
+
+  if (req.user && req.user.role !== 'admin') {
+    throw new ApiError(httpStatus.FORBIDDEN, 'You Are Not Authorized To Access This Resource');
+  }
+
+  const summary = await orderService.calculateOrderSummaryForAdmin({ items, couponCodes });
+  res.status(httpStatus.OK).send(summary);
+});
+
 const calculateOrderSummary = catchAsync(async (req, res) => {
   const { cartId, couponCodes = [] } = req.body;
 
@@ -303,6 +318,7 @@ module.exports = {
   createOrderByUser,
   checkoutOrder,
   calculateOrderSummary,
+  calculateOrderSummaryForAdmin,
   // address
   createAddressByUser,
   getAllUserAddress,

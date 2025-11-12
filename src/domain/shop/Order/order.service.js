@@ -428,10 +428,25 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
   };
 
   if (couponCodes && couponCodes.length > 0) {
+    // Extract unique coach IDs from courses
+    const coachIds = [];
+    if (validCourseAndProduct && validCourseAndProduct.length > 0) {
+      validCourseAndProduct.forEach((item) => {
+        if (item?.course && item?.course?.coach_id) {
+          // Assuming coach is stored in course object
+          const coachId = item?.course?.coach_id?._id || item?.course?.coach_id;
+          if (coachId && !coachIds.includes(coachId.toString())) {
+            coachIds.push(coachId);
+          }
+        }
+      });
+    }
+
     // Prepare order items for coupon validation
     const orderItems = {
       products: productsItemsObj.map((p) => p.productId),
       courses: coursesItemsObj.map((c) => c.courseId),
+      coaches: coachIds,
     };
 
     // Validate coupons

@@ -441,6 +441,50 @@ const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems })
       }
     }
 
+    // Check except_coach restriction if specified
+    if (coupon.except_coach && coupon.except_coach.length > 0) {
+      const exceptCoachIds = coupon.except_coach.map((coach) => coach.toString());
+      const orderCoachIds = orderItems.coaches ? orderItems.coaches.map((c) => c.toString()) : [];
+
+      const hasExceptCoach = orderCoachIds.some((coachId) => exceptCoachIds.includes(coachId));
+
+      if (hasExceptCoach) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon cannot be applied to one or more coaches in this order',
+        });
+        continue;
+      }
+    }
+
+    // Check applicable_coach restriction if specified
+    if (coupon.applicable_coach && coupon.applicable_coach.length > 0) {
+      const applicableCoachIds = coupon.applicable_coach.map((coach) => coach.toString());
+      const orderCoachIds = orderItems.coaches ? orderItems.coaches.map((c) => c.toString()) : [];
+
+      // If there are no coaches in the order, coupon cannot be applied
+      if (orderCoachIds.length === 0) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon requires specific coaches but no coaches found in order',
+        });
+        continue;
+      }
+
+      const hasApplicableCoach = orderCoachIds.some((coachId) => applicableCoachIds.includes(coachId));
+
+      if (!hasApplicableCoach) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon is not applicable to any coaches in this order',
+        });
+        continue;
+      }
+    }
+
     // If all validations pass, add to valid coupons
     validCoupons.push(coupon);
   }
@@ -451,8 +495,6 @@ const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems })
     totalDiscount, // Will be calculated when applying to actual price
   };
 };
-
-
 
 /**
  * Calculate total discount from valid coupons

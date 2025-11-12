@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable camelcase */
 const httpStatus = require('http-status');
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -34,18 +35,15 @@ const createMultipleCoupons = async (baseCouponBody, userId, count) => {
 
   // Batch check for existing codes in database (single query for performance)
   const existingCoupons = await CouponCode.find({
-    code: { $in: codesArray }
+    code: { $in: codesArray },
   }).select('code');
 
-  const existingCodesSet = new Set(existingCoupons.map(c => c.code));
+  const existingCodesSet = new Set(existingCoupons.map((c) => c.code));
 
   // If any codes already exist, throw error with details
   if (existingCodesSet.size > 0) {
     const conflictingCodes = Array.from(existingCodesSet);
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      `Coupon codes already exist: ${conflictingCodes.join(', ')}`
-    );
+    throw new ApiError(httpStatus.BAD_REQUEST, `Coupon codes already exist: ${conflictingCodes.join(', ')}`);
   }
 
   // Prepare all coupon objects for bulk insertion
@@ -169,7 +167,7 @@ const queryCouponCodes = async (filter, options) => {
   // Handle valid_from date range
   if (valid_from) {
     dateRangeQueries.valid_from = {};
-      dateRangeQueries.valid_from.$gte = new Date(valid_from);
+    dateRangeQueries.valid_from.$gte = new Date(valid_from);
   }
 
   // Handle valid_until date range
@@ -284,6 +282,209 @@ const validateAndApplyCoupon = async (code, originalPrice, courseId = null) => {
 };
 
 /**
+ * Check and Validate Coupon Codes
+ * @param {Array} couponCodes - Array of coupon ObjectIDs
+ * @param {String} order_variant - Order variant type (default: 'ORDER')
+ * @param {Object} orderItems - Object containing products and courses arrays
+ * @returns {Object} - Valid coupons, invalid coupons with reasons, and total discount
+ */
+const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems }) => {
+  const validCoupons = [];
+  const invalidCoupons = [];
+  let totalDiscount = 0;
+
+  // Return early if no coupons provided
+  if (!couponCodes || couponCodes.length === 0) {
+    return {
+      validCoupons,
+      invalidCoupons,
+      totalDiscount,
+    };
+  }
+
+  // Fetch all coupons from database
+  const coupons = await CouponCode.find({
+    _id: { $in: couponCodes },
+  });
+
+  // Check if all coupon IDs were found
+  const foundIds = coupons.map((c) => c._id.toString());
+  const notFoundIds = couponCodes.filter((id) => !foundIds.includes(id.toString()));
+
+  // Add not found coupons to invalid list
+  notFoundIds.forEach((id) => {
+    invalidCoupons.push({
+      couponId: id,
+      reason: 'Coupon code not found in database',
+    });
+  });
+
+  // Check for REFERRAL type restriction
+  const referralCoupons = coupons.filter((c) => c.type === 'REFERRAL');
+  if (referralCoupons.length > 1) {
+    referralCoupons.forEach((coupon) => {
+      invalidCoupons.push({
+        couponId: coupon._id,
+        code: coupon.code,
+        reason: 'Only one REFERRAL coupon is allowed per order',
+      });
+    });
+    // Remove all referral coupons from processing
+    const referralIds = referralCoupons.map((c) => c._id.toString());
+    coupons.splice(0, coupons.length, ...coupons.filter((c) => !referralIds.includes(c._id.toString())));
+  }
+
+  // Check for is_combined === false restriction
+  const nonCombinableCoupons = coupons.filter((c) => c.is_combined === false);
+  if (nonCombinableCoupons.length > 0) {
+    if (coupons.length > 1) {
+      // If there are multiple coupons and one is not combinable, reject all
+      coupons.forEach((coupon) => {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason:
+            coupon.is_combined === false
+              ? 'This coupon cannot be combined with other coupons'
+              : 'Cannot be used with non-combinable coupon',
+        });
+      });
+      return {
+        validCoupons,
+        invalidCoupons,
+        totalDiscount: 0,
+      };
+    }
+  }
+
+  // Validate each coupon
+  for (const coupon of coupons) {
+    // Skip if already in invalid list
+    if (invalidCoupons.some((inv) => inv.couponId.toString() === coupon._id.toString())) {
+      continue;
+    }
+
+    // Check if coupon is valid using schema method
+    if (!coupon.isValid()) {
+      let reason = 'Coupon is not valid';
+      const now = new Date();
+
+      if (!coupon.is_active) {
+        reason = 'Coupon is not active';
+      } else if (coupon.current_uses >= coupon.max_uses) {
+        reason = 'Coupon has reached maximum uses';
+      } else if (now < coupon.valid_from) {
+        reason = 'Coupon is not yet valid';
+      } else if (now > coupon.valid_until) {
+        reason = 'Coupon has expired';
+      }
+
+      invalidCoupons.push({
+        couponId: coupon._id,
+        code: coupon.code,
+        reason,
+      });
+      continue;
+    }
+
+    // Check coupon_variant restriction
+    if (coupon.coupon_variant === 'COURSE_SESSION') {
+      invalidCoupons.push({
+        couponId: coupon._id,
+        code: coupon.code,
+        reason: 'COURSE_SESSION coupons cannot be applied to orders',
+      });
+      continue;
+    }
+
+    // Check if coupon_variant matches order type
+    if (coupon.coupon_variant !== 'ALL' && coupon.coupon_variant !== order_variant) {
+      invalidCoupons.push({
+        couponId: coupon._id,
+        code: coupon.code,
+        reason: `Coupon is only valid for ${coupon.coupon_variant} type`,
+      });
+      continue;
+    }
+
+    // Check applicable_courses restriction if specified
+    if (coupon.applicable_courses && coupon.applicable_courses.length > 0) {
+      const applicableCourseIds = coupon.applicable_courses.map((ac) => ac.target_id.toString());
+      const orderCourseIds = orderItems.courses ? orderItems.courses.map((c) => c.toString()) : [];
+
+      const hasApplicableCourse = orderCourseIds.some((cId) => applicableCourseIds.includes(cId));
+
+      if (!hasApplicableCourse) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon is not applicable to any courses in this order',
+        });
+        continue;
+      }
+    }
+
+    // Check except_courses restriction if specified
+    if (coupon.except_courses && coupon.except_courses.length > 0) {
+      const exceptCourseIds = coupon.except_courses.map((ec) => ec.target_id.toString());
+      const orderCourseIds = orderItems.courses ? orderItems.courses.map((c) => c.toString()) : [];
+
+      const hasExceptCourse = orderCourseIds.some((cId) => exceptCourseIds.includes(cId));
+
+      if (hasExceptCourse) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon cannot be applied to one or more courses in this order',
+        });
+        continue;
+      }
+    }
+
+    // If all validations pass, add to valid coupons
+    validCoupons.push(coupon);
+  }
+
+  return {
+    validCoupons,
+    invalidCoupons,
+    totalDiscount, // Will be calculated when applying to actual price
+  };
+};
+
+
+
+/**
+ * Calculate total discount from valid coupons
+ * @param {Array} validCoupons - Array of valid coupon objects
+ * @param {Number} originalPrice - Original price before discount
+ * @returns {Object} - Total discount and final price
+ */
+const calculateCouponDiscount = (validCoupons, originalPrice) => {
+  let totalDiscount = 0;
+  let currentPrice = originalPrice;
+
+  for (const coupon of validCoupons) {
+    let discount = 0;
+
+    if (coupon.discount_type === 'PERCENTAGE') {
+      discount = currentPrice * (coupon.discount_value / 100);
+    } else if (coupon.discount_type === 'FIXED_AMOUNT') {
+      discount = coupon.discount_value;
+    }
+
+    // Ensure discount doesn't exceed current price
+    discount = Math.min(discount, currentPrice);
+    totalDiscount += discount;
+    currentPrice -= discount;
+  }
+
+  return {
+    totalDiscount: Math.round(totalDiscount),
+    finalPrice: Math.max(0, Math.round(currentPrice)),
+  };
+};
+/**
  * Generate a referral code for a user
  * @param {ObjectId} userId
  * @param {Object} couponDetails
@@ -315,4 +516,6 @@ module.exports = {
   deleteCouponCodeById,
   validateAndApplyCoupon,
   generateReferralCode,
+  checkCoupon,
+  calculateCouponDiscount,
 };

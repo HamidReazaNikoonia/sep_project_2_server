@@ -17,6 +17,9 @@ const APIFeatures = require('../../../utils/APIFeatures');
 const ZarinpalCheckout = require('../../../services/payment');
 const config = require('../../../config/config');
 
+// coupon codes service
+const { checkCoupon, calculateCouponDiscount } = require('../../CouponCodes/couponCodes.service');
+
 const OrderId = require('../../../utils/orderId');
 
 // helper
@@ -101,21 +104,21 @@ const getAllOrders = async ({ filter, options }) => {
         from: 'users',
         localField: 'customer',
         foreignField: '_id',
-        as: 'customerData'
-      }
+        as: 'customerData',
+      },
     });
 
     pipeline.push({
       $unwind: {
         path: '$customerData',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     });
   }
 
   // Stage 2: Build match conditions
   const matchConditions = {
-    soft_delete: false
+    soft_delete: false,
   };
 
   // 1. Filter by order status
@@ -139,7 +142,7 @@ const getAllOrders = async ({ filter, options }) => {
     matchConditions.$or = [
       { 'customerData.first_name': customerSearchRegex },
       { 'customerData.last_name': customerSearchRegex },
-      { 'customerData.mobile': customerSearchRegex }
+      { 'customerData.mobile': customerSearchRegex },
     ];
   }
 
@@ -187,31 +190,21 @@ const getAllOrders = async ({ filter, options }) => {
   if (filter.have_product === 'true' || filter.have_product === true) {
     matchConditions['products.product'] = { $exists: true, $ne: null };
   } else if (filter.have_product === 'false' || filter.have_product === false) {
-    matchConditions.$or = [
-      { 'products.product': { $exists: false } },
-      { 'products.product': null }
-    ];
+    matchConditions.$or = [{ 'products.product': { $exists: false } }, { 'products.product': null }];
   }
 
   // Check if order has courses
   if (filter.have_course === 'true' || filter.have_course === true) {
     matchConditions['products.course'] = { $exists: true, $ne: null };
   } else if (filter.have_course === 'false' || filter.have_course === false) {
-    matchConditions.$or = [
-      { 'products.course': { $exists: false } },
-      { 'products.course': null }
-    ];
+    matchConditions.$or = [{ 'products.course': { $exists: false } }, { 'products.course': null }];
   }
 
   // Check if order has applied coupons
   if (filter.have_coupon === 'true' || filter.have_coupon === true) {
     matchConditions['appliedCoupons.0'] = { $exists: true };
   } else if (filter.have_coupon === 'false' || filter.have_coupon === false) {
-    matchConditions.$or = [
-      { appliedCoupons: { $exists: false } },
-      { appliedCoupons: { $size: 0 } },
-      { appliedCoupons: [] }
-    ];
+    matchConditions.$or = [{ appliedCoupons: { $exists: false } }, { appliedCoupons: { $size: 0 } }, { appliedCoupons: [] }];
   }
 
   // Check if order has discount
@@ -222,7 +215,7 @@ const getAllOrders = async ({ filter, options }) => {
       { total_discount_price: { $exists: false } },
       { total_discount_price: null },
       { total_discount_price: 0 },
-      { total_discount_price: { $lte: 0 } }
+      { total_discount_price: { $lte: 0 } },
     ];
   }
 
@@ -230,10 +223,7 @@ const getAllOrders = async ({ filter, options }) => {
   if (filter.have_shipping === 'true' || filter.have_shipping === true) {
     matchConditions.shippingAddress = { $exists: true, $ne: null };
   } else if (filter.have_shipping === 'false' || filter.have_shipping === false) {
-    matchConditions.$or = [
-      { shippingAddress: { $exists: false } },
-      { shippingAddress: null }
-    ];
+    matchConditions.$or = [{ shippingAddress: { $exists: false } }, { shippingAddress: null }];
   }
 
   pipeline.push({ $match: matchConditions });
@@ -242,8 +232,8 @@ const getAllOrders = async ({ filter, options }) => {
   if (filter.customer) {
     pipeline.push({
       $project: {
-        customerData: 0
-      }
+        customerData: 0,
+      },
     });
   }
 
@@ -274,10 +264,7 @@ const getAllOrders = async ({ filter, options }) => {
   pipeline.push({ $limit: limit });
 
   // Execute both pipelines
-  const [countResult, results] = await Promise.all([
-    Order.aggregate(countPipeline),
-    Order.aggregate(pipeline)
-  ]);
+  const [countResult, results] = await Promise.all([Order.aggregate(countPipeline), Order.aggregate(pipeline)]);
 
   // Populate references after aggregation
   const populatedResults = await Order.populate(results, [
@@ -299,7 +286,7 @@ const getAllOrders = async ({ filter, options }) => {
     page,
     limit,
     totalPages,
-    totalResults
+    totalResults,
   };
 };
 
@@ -310,9 +297,6 @@ const getAllUsersOrders = async ({ user, query }) => {
   const features = new APIFeatures(Order.find({ customer: user.id }), query).filter().sort().limitFields().paginate();
   const orders = await features.query;
   // const { total } = await features.count();
-
-
-
 
   console.log('---total mother fucker -----');
   // console.log(total);
@@ -343,6 +327,170 @@ const getUserOrderById = async ({ orderId, user }) => {
   }
 
   return { data: order };
+};
+
+/**
+ * Calculate Order Summary
+ */
+const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
+  if (!mongoose.Types.ObjectId.isValid(cartId)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Cart ID');
+  }
+
+  const cart = await cartModel.findById(cartId);
+  if (!cart) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Cart Not Exist In Database');
+  }
+
+  // if cart empty
+  if (!cart.cartItem || cart.cartItem.length === 0) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Cart Have Not Any Item');
+  }
+
+  // check if cart items contain `Product` or just courses
+  // if cart items are course, we dont need to get Shipping Address from user
+  // check if `Product` Exist in the cartitems
+  // const hasProductItemProperty = cart.cartItem.some(item => 'productId' in item);
+
+  let hasProductItemProperty = false;
+
+  for (const item of cart.cartItem) {
+    if (item && item.productId !== undefined) {
+      hasProductItemProperty = true;
+      break; // Exit the loop early if the property is found
+    }
+  }
+
+  // map over cart.cartItem
+
+  const productsItemsObj = cart.cartItem.filter((i) => !!i.productId);
+  const coursesItemsObj = cart.cartItem.filter((i) => !!i.courseId);
+
+  // Map `Product` in the Cart
+  const productsItems = productsItemsObj.map((item) => {
+    return {
+      product: item.productId,
+      quantity: item.quantity,
+      price: item.price,
+    };
+  });
+
+  // Map Courses in The Cart
+  const coursesItems = coursesItemsObj.map((item) => {
+    return {
+      course: item.courseId,
+      quantity: 1,
+      price: item.price,
+    };
+  });
+
+  // Implement Products and validate product
+  // * Status Should be True and available
+  // * Check Quantity
+
+  let validCourseAndProduct = [];
+
+  if (coursesItems.length > 0) {
+    const validCourse = validateCourse(coursesItems);
+    validCourseAndProduct = [...validCourseAndProduct, ...validCourse];
+    // Object.assign(validCourseAndProduct, validCourse);
+  }
+
+  // Implement Products and validate product
+  // * Status Should be True and available
+  // * Check Quantity
+  if (productsItems.length > 0) {
+    const validProducts = await validateProducts(productsItems);
+    // return validProducts;
+    validCourseAndProduct = [...validCourseAndProduct, ...validProducts];
+    // Object.assign(validCourseAndProduct, validProducts);
+  }
+
+  if (!Array.isArray(validCourseAndProduct)) {
+    throw new ApiError(httpStatus.BAD_GATEWAY, 'System Could Not Retrive Product');
+  }
+
+  // Calculate Total Price
+  const tprice = calculateTotalPrice(validCourseAndProduct);
+  const TAX_CONSTANT = Math.round(tprice * 0.08); // Assuming 8% tax rate;
+  const CONSTANT_SHIPPING_AMOUNT = 10000;
+  let totalAmount = tprice + TAX_CONSTANT;
+
+  if (hasProductItemProperty) {
+    totalAmount += CONSTANT_SHIPPING_AMOUNT;
+  }
+
+  // Process Coupon Codes
+  let couponResult = {
+    validCoupons: [],
+    invalidCoupons: [],
+    totalDiscount: 0,
+  };
+
+  if (couponCodes && couponCodes.length > 0) {
+    // Prepare order items for coupon validation
+    const orderItems = {
+      products: productsItemsObj.map((p) => p.productId),
+      courses: coursesItemsObj.map((c) => c.courseId),
+    };
+
+    // Validate coupons
+    couponResult = await checkCoupon({
+      couponCodes,
+      order_variant: 'ORDER',
+      orderItems,
+    });
+
+    // Check minimum purchase amount for each valid coupon
+    const validCouponsAfterMinCheck = [];
+    couponResult.validCoupons.forEach((coupon) => {
+      if (totalAmount >= coupon.min_purchase_amount) {
+        validCouponsAfterMinCheck.push(coupon);
+      } else {
+        couponResult.invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: `Minimum purchase amount of ${coupon.min_purchase_amount} not met`,
+        });
+      }
+    });
+
+    // Calculate discount from valid coupons
+    if (validCouponsAfterMinCheck.length > 0) {
+      const discountResult = calculateCouponDiscount(validCouponsAfterMinCheck, totalAmount);
+      couponResult.totalDiscount = discountResult.totalDiscount;
+      totalAmount = discountResult.finalPrice;
+      couponResult.validCoupons = validCouponsAfterMinCheck;
+    }
+  }
+
+  return {
+    products: validCourseAndProduct,
+    total: tprice,
+    tax: TAX_CONSTANT,
+    totalAmount,
+    ...(hasProductItemProperty && { shippingAmount: CONSTANT_SHIPPING_AMOUNT }),
+    ...(couponCodes.length > 0 && {
+      couponInfo: {
+        validCoupons: couponResult.validCoupons.map((c) => ({
+          id: c._id,
+          code: c.code,
+          discount_type: c.discount_type,
+          discount_value: c.discount_value,
+        })),
+        invalidCoupons: couponResult.invalidCoupons,
+        totalDiscount: couponResult.totalDiscount,
+      },
+    }),
+  };
+
+  // return {
+  //   products: validCourseAndProduct,
+  //   total: tprice,
+  //   tax: TAX_CONSTANT,
+  //   totalAmount,
+  //   ...(hasProductItemProperty && { shippingAmount: CONSTANT_SHIPPING_AMOUNT }),
+  // };
 };
 
 /**
@@ -469,8 +617,6 @@ const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
     }
   }
 
-
-
   // Generate Ref
   const orderIdGenerator = OrderId();
   const randomRef = Math.floor(Math.random() * 1000);
@@ -582,8 +728,6 @@ const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
   if (!savedTransaction) {
     throw new ApiError(httpStatus[500], 'Transaction Could Not Save In DB');
   }
-
-
 
   return { newOrder, transaction, payment };
 };
@@ -734,11 +878,8 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
 
   // Transaction Pay Successfully
   if (payment.data.code === 100 && payment.data.message === 'Paid') {
-
-     // Delete Cart
-     await cartModel.deleteOne({userId: order.customer});
-
-
+    // Delete Cart
+    await cartModel.deleteOne({ userId: order.customer });
 
     // Update Transaction
     transaction.status = true;
@@ -753,7 +894,6 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
 
   // call checkAndUpdateOrderProductPrices
   // call decrementProductCount
-
 
   return { order, transaction, payment };
 };
@@ -853,6 +993,7 @@ module.exports = {
   createOrder,
   updateOrder,
   deleteOrder,
+  calculateOrderSummary,
   checkoutOrder,
   createOrderByUser,
 };

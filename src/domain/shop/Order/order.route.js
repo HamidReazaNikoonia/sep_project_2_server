@@ -6,6 +6,7 @@ const {
   getAllOrders,
   getOrderById,
   createOrder,
+  calculateOrderSummary,
   createOrderByUser,
   updateOrder,
   deleteOrder,
@@ -38,6 +39,9 @@ orderRouteForAdmin
 /** **************************  Authenticate User Route  ***************************************** */
 
 orderRoute.route('/').get(auth(), getAllUserOrders).post(auth(), createOrderByUser);
+
+// Pre checkout Order
+orderRoute.post('/calculate-order-summary', auth(), calculateOrderSummary);
 
 // Address Routes
 orderRoute.route('/shipping_address').get(auth(), getAllUserAddress).post(auth(), createAddressByUser);

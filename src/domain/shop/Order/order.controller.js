@@ -166,6 +166,19 @@ const createOrderByUser = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(newOrder);
 });
 
+const calculateOrderSummary = catchAsync(async (req, res) => {
+  const { cartId, couponCodes = [] } = req.body;
+
+  if (!req.user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User Not Exist');
+  } else if (!cartId) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Cart Not Defined In Request Body');
+  }
+
+  const summary = await orderService.calculateOrderSummary({ cartId, couponCodes });
+  res.status(httpStatus.OK).send(summary);
+});
+
 /**
  * *** Admin ***
  * Asynchronous controller function to update an existing order by its unique ID.
@@ -289,6 +302,7 @@ module.exports = {
   deleteOrder,
   createOrderByUser,
   checkoutOrder,
+  calculateOrderSummary,
   // address
   createAddressByUser,
   getAllUserAddress,

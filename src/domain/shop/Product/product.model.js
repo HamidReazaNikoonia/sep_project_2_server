@@ -114,10 +114,19 @@ const productSchema = mongoose.Schema(
       max: [10, 'Rating must can not be more than 10'],
     },
 
-    price: {
+    price_real: {
       type: Number,
       required: true,
       default: 0,
+    },
+    price_discount: {
+      type: Number,
+      required: false,
+      default: 0,
+    },
+    is_fire_sale: {
+      type: Boolean,
+      default: false,
     },
     countInStock: {
       type: Number,

@@ -119,20 +119,22 @@ const seedCategories = async () => {
 const seedProducts = async (categories) => {
   const products = [];
 
+  // eslint-disable-next-line no-plusplus
   for (let i = 0; i < 30; i++) {
     const title = randomItem(titles);
     const subtitle = randomItem(subtitles);
     const description = randomItem(descriptions);
 
     const price = randomInt(50000, 2000000); // 50k to 2M
-    const discountable = randomBool(0.4)
+    const isFireSale = randomBool(0.5);
+    const discountable = isFireSale
       ? {
           status: true,
           percent: randomInt(5, 30)
         }
       : { status: false };
 
-    const finalPrice = discountable.status ? price * (1 - discountable.percent / 100) : price;
+    const finalPriceWithDiscount = isFireSale ? Math.ceil(price * (1 - discountable.percent / 100)) : price;
 
     const product = {
       title,
@@ -155,7 +157,10 @@ const seedProducts = async (categories) => {
         () => randomItem(categories)._id
       ),
       average_rating: Number((Math.random() * 4 + 1).toFixed(1)), // 1.0 to 5.0
-      price: finalPrice,
+      price_real: price,
+      // Randomly assign price_discount as 0 in about half of the products
+      price_discount: isFireSale ? finalPriceWithDiscount : 0,
+      is_fire_sale: isFireSale,
       countInStock: randomInt(0, 50),
       is_available: randomInt(0, 50) > 0,
       is_giftcard: false,

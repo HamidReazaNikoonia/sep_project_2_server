@@ -28,7 +28,8 @@
     "seed:notifications": "node src/seeders/seedNotifications.js",
     "seed:tickets": "node src/seeders/seedTickets.js",
     "seed:courses": "node src/seeders/seedCourses.js",
-    "seed:products": "node src/seeders/seedProducts.js"
+    "seed:products": "node src/seeders/seedProducts.js",
+    "seed:addresses": "node src/seeders/seedAddresses.js"
   },
   "keywords": [
     "node",

@@ -302,22 +302,45 @@ const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems })
     };
   }
 
-  // Fetch all coupons from database
-  const coupons = await CouponCode.find({
-    _id: { $in: couponCodes },
-  });
+  // Detect if couponCodes contains IDs or codes by checking the first item (assuming all elements are of same type)
+  let coupons;
 
-  // Check if all coupon IDs were found
+  const firstValue = couponCodes[0];
+  const isObjectId = /^[a-f\d]{24}$/i.test(firstValue);
+
+  if (isObjectId) {
+    // If IDs (ObjectIds)
+    coupons = await CouponCode.find({ _id: { $in: couponCodes } });
+  } else {
+    // If codes (strings)
+    coupons = await CouponCode.find({ code: { $in: couponCodes } });
+  }
+
   const foundIds = coupons.map((c) => c._id.toString());
   const notFoundIds = couponCodes.filter((id) => !foundIds.includes(id.toString()));
 
-  // Add not found coupons to invalid list
-  notFoundIds.forEach((id) => {
-    invalidCoupons.push({
-      couponId: id,
-      reason: 'Coupon code not found in database',
+  // codes
+  const foundCodes = coupons.map((c) => c.code.toUpperCase());
+  const notFoundCodes = couponCodes.filter((code) => !foundCodes.includes(code.toUpperCase()));
+
+  // Check if all coupon IDs were found
+  if (isObjectId) {
+    // Add not found coupons to invalid list
+    notFoundIds.forEach((id) => {
+      invalidCoupons.push({
+        couponId: id,
+        reason: 'Coupon code not found in database',
+      });
     });
-  });
+  } else {
+    notFoundCodes.forEach((code) => {
+      invalidCoupons.push({
+        couponId: code,
+        code,
+        reason: 'Coupon code not found in database',
+      });
+    });
+  }
 
   // Check for REFERRAL type restriction
   const referralCoupons = coupons.filter((c) => c.type === 'REFERRAL');

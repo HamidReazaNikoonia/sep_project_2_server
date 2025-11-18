@@ -84,7 +84,7 @@ const getAllProductForAdmin = async ({ filter, options }) => {
 
   const products = await Product.paginate(otherFilters, options);
 
-  return { data: products };
+  return products;
 };
 
 const getProductBySlug = async ({ productId, user }) => {

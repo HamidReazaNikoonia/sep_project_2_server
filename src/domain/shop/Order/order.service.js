@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 /* eslint-disable no-restricted-syntax */
 const mongoose = require('mongoose');
 const httpStatus = require('http-status');
@@ -11,6 +12,7 @@ const { Address } = require('./order.model');
 const cartModel = require('./../Cart/cart.model');
 const Transaction = require('../../Transaction/transaction.model');
 const { Course: courseModel } = require('../../Course/course.model');
+const UserModel = require('../../../models/user.model');
 
 // Utils
 const ApiError = require('../../../utils/ApiError');
@@ -20,6 +22,7 @@ const config = require('../../../config/config');
 
 // coupon codes service
 const { checkCoupon, calculateCouponDiscount } = require('../../CouponCodes/couponCodes.service');
+const CouponCode = require('../../CouponCodes/couponCodes.model');
 
 const OrderId = require('../../../utils/orderId');
 
@@ -38,21 +41,24 @@ const validateCourse = (courses) => {
   const validCourse = [];
 
   for (const item of courses) {
-    const { course_member, course_status, max_member_accept, _id: courseId } = item.course;
+    const { course_status, _id: courseId, title: course_title } = item.courseId;
 
     // check Status
     if (!course_status) {
-      throw new ApiError(httpStatus.BAD_REQUEST, `(ERROR::Status_false) This Course Status Is False: ${courseId}`);
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `(ERROR::Status_false) This Course Status Is False: title:${item.courseId?.title} - id:${courseId}`
+      );
     }
 
     // check member count validation
-    if (Array.isArray(course_member)) {
-      if (course_member.length > max_member_accept) {
-        throw new ApiError(httpStatus.BAD_REQUEST, `(ERROR::max_member_accept) This Course Member Is Full : ${courseId}`);
-      }
-    }
+    // if (Array.isArray(course_member)) {
+    //   if (course_member.length > max_member_accept) {
+    //     throw new ApiError(httpStatus.BAD_REQUEST, `(ERROR::max_member_accept) This Course Member Is Full : ${courseId}`);
+    //   }
+    // }
 
-    validCourse.push({ course: courseId, quantity: 1, price: item.price });
+    validCourse.push({ course: courseId, quantity: 1, price: item.price, title: course_title });
   }
 
   return validCourse;
@@ -62,33 +68,37 @@ const validateProducts = async (products) => {
   const validProducts = [];
 
   for (const item of products) {
-    const { product: productId, quantity } = item;
+    const { productId: product, quantity } = item;
 
     // Check if the product ID is valid
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-      throw new ApiError(httpStatus.BAD_REQUEST, `Invalid Product ID: ${productId}`);
-    }
+    // if (!mongoose.Types.ObjectId.isValid(productId)) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, `Invalid Product ID: ${productId}`);
+    // }
 
     // Find the product in the database
     // eslint-disable-next-line no-await-in-loop
-    const product = await Product.findById(productId);
+    // const product = await Product.findById(productId);
 
     if (!product) {
-      throw new ApiError(httpStatus.NOT_FOUND, `Product not found: ${productId}`);
+      throw new ApiError(httpStatus.NOT_FOUND, `Product not found: ${product?.title} - id:${product?.id}`);
+    }
+
+    if (product?.status !== 'publish') {
+      throw new ApiError(httpStatus.BAD_REQUEST, `Product status is not publish: ${product?.title} - id:${product?.id}`);
     }
 
     // Check if the product is available
     if (!product.is_available) {
-      throw new ApiError(httpStatus.BAD_REQUEST, `Product is not available: ${productId}`);
+      throw new ApiError(httpStatus.BAD_REQUEST, `Product is not available: ${product?.title} - id:${product?.id}`);
     }
 
     // Check if there is enough quantity in stock
     if (product.countInStock < quantity) {
-      throw new ApiError(httpStatus.BAD_REQUEST, `Insufficient stock for product: ${productId}`);
+      throw new ApiError(httpStatus.BAD_REQUEST, `Insufficient stock for product: ${product?.title} - id:${product?.id}`);
     }
 
     // Add the valid product to the array
-    validProducts.push({ product: productId, quantity, price: product.price });
+    validProducts.push({ product: product?.id, quantity, price: item.price, title: product?.title });
   }
 
   return validProducts;
@@ -342,8 +352,8 @@ const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Items are required');
   }
 
+  // Check if the order has products (we should add shipping amount to the total amount)
   let hasProductItemProperty = false;
-
   for (const item of items) {
     if (item && item.productId !== undefined) {
       hasProductItemProperty = true;
@@ -355,40 +365,48 @@ const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
   const productItemsObj = items.filter((item) => item.productId);
   const courseItemsObj = items.filter((item) => item.courseId);
 
-  // Map to expected format
-  const productsItems = productItemsObj.map((item) => ({
-    product: item.productId,
-    quantity: item.quantity,
-    price: item.price,
-  }));
+  // extract Ids
+  const courseIdsToFetch = courseItemsObj.map((item) => item.courseId);
+  const productIdsToFetch = productItemsObj.map((item) => item.productId);
 
-  const coursesItems = courseItemsObj.map((item) => ({
-    course: item.courseId,
-    quantity: item.quantity || 1,
-    price: item.price,
-  }));
-
-  // Loop over coursesItems and set the actual course document to the `course` property
-  // Collect all unique course IDs to fetch them in one query
-  const courseIdsToFetch = coursesItems.filter((item) => item.course).map((item) => item.course);
-
-  // Fetch all courses with coaches in one go
-  const foundCourses = await courseModel
+  // Get Products From Database
+  const products = await Product.find({ _id: { $in: productIdsToFetch } }).select(
+    'title price_real status price_discount is_fire_sale is_available countInStock'
+  );
+  const courses = await courseModel
     .find({ _id: { $in: courseIdsToFetch } })
-    .populate('coach_id')
-    .lean(false); // .lean(false) to keep Mongoose documents if needed
+    .select('title price_real price_discount is_fire_sale member.id coach_id course_status max_member_accept');
 
   // Build a map for fast lookup
   const courseMap = {};
-  for (const courseDoc of foundCourses) {
+  for (const courseDoc of courses) {
     courseMap[String(courseDoc._id)] = courseDoc;
   }
 
-  // Assign the found course documents back to coursesItems
-  for (let i = 0; i < coursesItems.length; i++) {
-    if (coursesItems[i].course && courseMap[coursesItems[i].course.toString()]) {
-      coursesItems[i].course = courseMap[coursesItems[i].course.toString()];
-    }
+  const productMap = {};
+  for (const productDoc of products) {
+    productMap[String(productDoc._id)] = productDoc;
+  }
+
+  const courseWithQuantity = [];
+  const productWithQuantity = [];
+
+  for (const item of productItemsObj) {
+    const pr = productMap[item.productId];
+    productWithQuantity.push({
+      productId: pr,
+      quantity: item.quantity,
+      price: pr?.is_fire_sale && pr?.price_discount ? pr?.price_discount : pr?.price_real,
+    });
+  }
+
+  for (const item of courseItemsObj) {
+    const cr = courseMap[item.courseId];
+    courseWithQuantity.push({
+      courseId: cr,
+      quantity: item.quantity,
+      price: cr?.is_fire_sale && cr?.price_discount ? cr?.price_discount : cr?.price_real,
+    });
   }
 
   //---------------------------
@@ -398,8 +416,8 @@ const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
 
   let validCourseAndProduct = [];
 
-  if (coursesItems.length > 0) {
-    const validCourse = validateCourse(coursesItems);
+  if (courseWithQuantity.length > 0) {
+    const validCourse = validateCourse(courseWithQuantity);
     validCourseAndProduct = [...validCourseAndProduct, ...validCourse];
     // Object.assign(validCourseAndProduct, validCourse);
   }
@@ -407,8 +425,8 @@ const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
   // Implement Products and validate product
   // * Status Should be True and available
   // * Check Quantity
-  if (productsItems.length > 0) {
-    const validProducts = await validateProducts(productsItems);
+  if (productWithQuantity.length > 0) {
+    const validProducts = await validateProducts(productWithQuantity);
     // return validProducts;
     validCourseAndProduct = [...validCourseAndProduct, ...validProducts];
     // Object.assign(validCourseAndProduct, validProducts);
@@ -422,6 +440,7 @@ const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
   // Calculate total price for products & courses
   // Calculate Total Price
   const tprice = calculateTotalPrice(validCourseAndProduct);
+
   const TAX_CONSTANT = Math.round(tprice * 0.08); // Assuming 8% tax rate;
   const CONSTANT_SHIPPING_AMOUNT = 10000;
   let totalAmount = tprice + TAX_CONSTANT;
@@ -513,7 +532,7 @@ const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
 /**
  * Calculate Order Summary
  */
-const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
+const calculateOrderSummary = async ({ cartId, couponCodes = [], useUserWallet = false }) => {
   if (!mongoose.Types.ObjectId.isValid(cartId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Cart ID');
   }
@@ -528,6 +547,54 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Cart Have Not Any Item');
   }
 
+  // Separate product and course items
+  const productItemsObj = cart?.cartItem.filter((item) => item.productId);
+  const courseItemsObj = cart?.cartItem.filter((item) => item.courseId);
+
+  // extract Ids
+  const courseIdsToFetch = courseItemsObj.map((item) => item.courseId);
+  const productIdsToFetch = productItemsObj.map((item) => item.productId);
+
+  // Get Products From Database
+  const products = await Product.find({ _id: { $in: productIdsToFetch } }).select(
+    'title price_real status price_discount is_fire_sale is_available countInStock'
+  );
+  const courses = await courseModel
+    .find({ _id: { $in: courseIdsToFetch } })
+    .select('title price_real price_discount is_fire_sale member.id coach_id course_status max_member_accept');
+
+  // Build a map for fast lookup
+  const courseMap = {};
+  for (const courseDoc of courses) {
+    courseMap[String(courseDoc._id)] = courseDoc;
+  }
+
+  const productMap = {};
+  for (const productDoc of products) {
+    productMap[String(productDoc._id)] = productDoc;
+  }
+
+  const courseWithQuantity = [];
+  const productWithQuantity = [];
+
+  for (const item of productItemsObj) {
+    const pr = productMap[item.productId];
+    productWithQuantity.push({
+      productId: pr,
+      quantity: item.quantity,
+      price: pr?.is_fire_sale && pr?.price_discount ? pr?.price_discount : pr?.price_real,
+    });
+  }
+
+  for (const item of courseItemsObj) {
+    const cr = courseMap[item.courseId];
+    courseWithQuantity.push({
+      courseId: cr,
+      quantity: item.quantity,
+      price: cr?.is_fire_sale && cr?.price_discount ? cr?.price_discount : cr?.price_real,
+    });
+  }
+
   // check if cart items contain `Product` or just courses
   // if cart items are course, we dont need to get Shipping Address from user
   // check if `Product` Exist in the cartitems
@@ -535,35 +602,32 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
 
   let hasProductItemProperty = false;
 
-  for (const item of cart.cartItem) {
-    if (item && item.productId !== undefined) {
-      hasProductItemProperty = true;
-      break; // Exit the loop early if the property is found
-    }
+  if (productWithQuantity?.length > 0) {
+    hasProductItemProperty = true;
   }
 
   // map over cart.cartItem
 
-  const productsItemsObj = cart.cartItem.filter((i) => !!i.productId);
-  const coursesItemsObj = cart.cartItem.filter((i) => !!i.courseId);
+  // const productsItemsObj = cart.cartItem.filter((i) => !!i.productId);
+  // const coursesItemsObj = cart.cartItem.filter((i) => !!i.courseId);
 
-  // Map `Product` in the Cart
-  const productsItems = productsItemsObj.map((item) => {
-    return {
-      product: item.productId,
-      quantity: item.quantity,
-      price: item.price,
-    };
-  });
+  // // Map `Product` in the Cart
+  // const productsItems = productsItemsObj.map((item) => {
+  //   return {
+  //     product: item.productId,
+  //     quantity: item.quantity,
+  //     price: item.price,
+  //   };
+  // });
 
-  // Map Courses in The Cart
-  const coursesItems = coursesItemsObj.map((item) => {
-    return {
-      course: item.courseId,
-      quantity: 1,
-      price: item.price,
-    };
-  });
+  // // Map Courses in The Cart
+  // const coursesItems = coursesItemsObj.map((item) => {
+  //   return {
+  //     course: item.courseId,
+  //     quantity: 1,
+  //     price: item.price,
+  //   };
+  // });
 
   // Implement Products and validate product
   // * Status Should be True and available
@@ -571,8 +635,8 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
 
   let validCourseAndProduct = [];
 
-  if (coursesItems.length > 0) {
-    const validCourse = validateCourse(coursesItems);
+  if (courseWithQuantity?.length > 0) {
+    const validCourse = validateCourse(courseWithQuantity);
     validCourseAndProduct = [...validCourseAndProduct, ...validCourse];
     // Object.assign(validCourseAndProduct, validCourse);
   }
@@ -580,8 +644,8 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
   // Implement Products and validate product
   // * Status Should be True and available
   // * Check Quantity
-  if (productsItems.length > 0) {
-    const validProducts = await validateProducts(productsItems);
+  if (productWithQuantity?.length > 0) {
+    const validProducts = await validateProducts(productWithQuantity);
     // return validProducts;
     validCourseAndProduct = [...validCourseAndProduct, ...validProducts];
     // Object.assign(validCourseAndProduct, validProducts);
@@ -593,6 +657,7 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
 
   // Calculate Total Price
   const tprice = calculateTotalPrice(validCourseAndProduct);
+
   const TAX_CONSTANT = Math.round(tprice * 0.08); // Assuming 8% tax rate;
   const CONSTANT_SHIPPING_AMOUNT = 10000;
   let totalAmount = tprice + TAX_CONSTANT;
@@ -625,8 +690,8 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
 
     // Prepare order items for coupon validation
     const orderItems = {
-      products: productsItemsObj.map((p) => p.productId),
-      courses: coursesItemsObj.map((c) => c.courseId),
+      products: productItemsObj.map((p) => p.productId),
+      courses: courseItemsObj.map((c) => c.courseId),
       coaches: coachIds,
     };
 
@@ -664,6 +729,7 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
     products: validCourseAndProduct,
     total: tprice,
     tax: TAX_CONSTANT,
+    totalAmountBeforeDiscount: tprice + TAX_CONSTANT + (hasProductItemProperty ? CONSTANT_SHIPPING_AMOUNT : 0),
     totalAmount,
     ...(hasProductItemProperty && { shippingAmount: CONSTANT_SHIPPING_AMOUNT }),
     ...(couponCodes.length > 0 && {
@@ -679,7 +745,6 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
       },
     }),
   };
-
   // return {
   //   products: validCourseAndProduct,
   //   total: tprice,
@@ -693,80 +758,166 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [] }) => {
  * Generate Order
  */
 
-const createOrder = async ({ orderData, user }) => {
-  if (!Array.isArray(orderData.products)) {
+const createOrderForAdmin = async ({ orderData, user }) => {
+  if (!Array.isArray(orderData.items)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Product not Exist in the Order');
   }
 
-  if (orderData.products.length === 0) {
+  if (orderData.items.length === 0) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Product not Exist in the Order');
   }
 
-  let customer = user.id;
+  const customerId = orderData.customer;
+
+  if (!mongoose.Types.ObjectId.isValid(customerId)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Customer ID');
+  }
+
+  const customer = await UserModel.findById(customerId).select('mobile');
+
+  if (!customer) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Customer Not Found');
+  }
+
+  // check if cart items contain `Product` or just courses
+  // if cart items are course, we dont need to get Shipping Address from user
+  // check if `Product` Exist in the cartitems
+  // const hasProductItemProperty = cart.cartItem.some(item => 'productId' in item);
+
   let address = null;
+  let hasProductItemProperty = false;
 
-  const body = {
-    customer,
-    paymentMethod: orderData.paymentMethod,
-    // ...(orderData.billingAddress && { billingAddress: orderData.billingAddress }),
-  };
+  for (const item of orderData?.items) {
+    if (item && item.productId !== undefined) {
+      hasProductItemProperty = true;
+      break; // Exit the loop early if the property is found
+    }
+  }
 
-  // Generate Address
-  // If address Exist in the body from user but it not saved in DB
-  // we generate new Address in DB and then assign to the Order
-  if (orderData.billingAddress && !mongoose.Types.ObjectId.isValid(orderData.billingAddress)) {
-    address = await Address.create({
-      customer,
-      billingAddress: orderData.billingAddress,
-    });
-
-    if (!address) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Address Could Not Save in DB');
+  if (hasProductItemProperty) {
+    // check the Shipping Address
+    if (!mongoose.Types.ObjectId.isValid(orderData?.shippingAddress)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid shippingAddress ID');
     }
 
-    body.billingAddress = orderData.billingAddress;
-    address = orderData.billingAddress;
-    // If Address from body exist in DB and orderData.billingAddress == Address._id
-  } else if (orderData.billingAddress && mongoose.Types.ObjectId.isValid(orderData.billingAddress)) {
-    body.billingAddress = orderData.billingAddress;
-    address = orderData.billingAddress;
+    // check shiping Address
+    const isSelectedAddressValid = await Address.findById(orderData?.shippingAddress);
+
+    if (!isSelectedAddressValid) {
+      throw new ApiError(httpStatus.NOT_MODIFIED, 'Address Not Exist In DB');
+    }
   }
 
+  const preOrderSummary = await calculateOrderSummaryForAdmin({
+    items: orderData.items,
+    couponCodes: orderData.couponCodes,
+  });
+
+  if (!preOrderSummary) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Order Summary Could Not Be Calculated');
+  }
+
+  // POST Order Task
+  // 1- reduce products count and query to DB
   // Generate Ref
   const orderIdGenerator = OrderId();
   const randomRef = Math.floor(Math.random() * 1000);
   const refrenceId = `${orderIdGenerator.generate()}-${randomRef}`;
 
-  body.reference = refrenceId;
+  // Calculate Total Price
+  const tprice = preOrderSummary.totalAmount;
+  const TAX_CONSTANT = preOrderSummary.tax;
+  // Math.round(totalPriceValue * 0.08);
 
-  // Implement Products
-  const validProducts = await validateProducts(orderData.products);
+  // return validCourseAndProduct;
 
-  if (!Array.isArray(validProducts)) {
-    throw new ApiError(httpStatus.BAD_GATEWAY, 'System Could Not Retrive Product');
+  // Coupons
+  const appliedCoupons = [];
+  const validatedAppliedCoupons = preOrderSummary?.couponInfo?.validCoupons;
+
+  if (validatedAppliedCoupons?.length > 0) {
+    validatedAppliedCoupons.forEach((coupon) => {
+      appliedCoupons.push({
+        couponId: coupon.id,
+        code: coupon.code,
+        discountAmount: coupon.discount_value,
+        discountType: coupon.discount_type,
+      });
+    });
   }
 
-  body.products = validProducts;
+  const newOrder = await Order.create({
+    customer: customerId,
+    products: preOrderSummary?.products,
+    ...(orderData?.shippingAddress && { shippingAddress: orderData?.shippingAddress }),
+    paymentMethod: 'zarinpal',
+    reference: refrenceId,
+    total: tprice,
+    totalAmount: tprice,
+    appliedCoupons,
+  });
 
-  // Calculate Total Price
-  const tprice = calculateTotalPrice(validProducts);
-  const TAX_CONSTANT = 100;
-
-  body.total = tprice;
-  body.totalAmount = tprice + TAX_CONSTANT;
-
-  const newOrder = await Order.create(body);
   if (!newOrder) {
     throw new ApiError(httpStatus.EXPECTATION_FAILED, 'Order Could Not Save In DB');
   }
 
-  // POST Order Task
-  // 1- reduce products count and query to DB
+  // if the `totalAmount` is 0 or less than 1000, we need to throw an error
+  // then we dont need for create Transaction and paymebnt method, just change the order status to `paid`
+  if (newOrder.totalAmount <= 0 || newOrder.totalAmount < 1000) {
+    // use the coupon if exist
+    if (preOrderSummary?.couponInfo?.validCoupons?.length > 0) {
+      const couponIds = preOrderSummary.couponInfo.validCoupons.map((coupon) => coupon.id);
+      const coupons = await CouponCode.find({ _id: { $in: couponIds } });
+      await Promise.all(coupons.map((coupon) => coupon.use()));
+    }
 
-  return { data: newOrder };
+    newOrder.status = 'confirmed';
+    newOrder.paymentStatus = 'paid';
+    await newOrder.save();
+    return { newOrder, transaction: null, payment: null };
+  }
+
+  // *** payment ***
+  // Send Payment Request to Get TOKEN
+  const factorNumber = uuidv4();
+  // console.log(config.CLIENT_URL);
+  // console.log({ tprice: newOrder.totalAmount });
+  // console.log('hooo');
+  const zarinpal = ZarinpalCheckout.create('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', true);
+  const payment = await zarinpal.PaymentRequest({
+    Amount: newOrder.totalAmount,
+    CallbackURL: `${config.SERVER_API_URL}/order/${newOrder._id}/checkout`,
+    Description: '---------',
+    Mobile: customer.mobile,
+    order_id: factorNumber,
+  });
+
+  // Validate Payment Request
+
+  if (!payment || payment.code !== 100) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `Payment Error with status => ${payment.code || null}`);
+  }
+
+  // Create New Transaction
+  const transaction = new Transaction({
+    // coachUserId: 'NOT_SELECTED',
+    userId: customerId,
+    order_id: newOrder._id,
+    amount: newOrder.totalAmount,
+    factorNumber: payment.authority,
+    tax: TAX_CONSTANT,
+  });
+
+  const savedTransaction = await transaction.save();
+
+  if (!savedTransaction) {
+    throw new ApiError(httpStatus[500], 'Transaction Could Not Save In DB');
+  }
+
+  return { newOrder, transaction, payment };
 };
 
-const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
+const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = [], useUserWallet = false }) => {
   if (!mongoose.Types.ObjectId.isValid(cartId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Cart ID');
   }
@@ -809,97 +960,96 @@ const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
     const isSelectedAddressValid = await Address.findById(shippingAddress);
 
     if (!isSelectedAddressValid) {
-      throw new ApiError(httpStatus.NOT_MODIFIED, 'Address Not Exist In DB');
+      throw new ApiError(httpStatus.NOT_FOUND, 'Address Not Exist In DB');
     }
   }
 
+  // ------------------
+  const preOrderSummary = await calculateOrderSummary({
+    cartId,
+    couponCodes,
+    useUserWallet,
+  });
+
+
+  return preOrderSummary;
+
+  if (!preOrderSummary) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Order Summary Could Not Be Calculated');
+  }
+
+  // POST Order Task
+  // 1- reduce products count and query to DB
   // Generate Ref
   const orderIdGenerator = OrderId();
   const randomRef = Math.floor(Math.random() * 1000);
   const refrenceId = `${orderIdGenerator.generate()}-${randomRef}`;
 
-  // map over cart.cartItem
-
-  const productsItemsObj = cart.cartItem.filter((i) => !!i.productId);
-  const coursesItemsObj = cart.cartItem.filter((i) => !!i.courseId);
-
-  // Map `Product` in the Cart
-  const productsItems = productsItemsObj.map((item) => {
-    return {
-      product: item.productId,
-      quantity: item.quantity,
-      price: item.price,
-    };
-  });
-
-  // Map Courses in The Cart
-  const coursesItems = coursesItemsObj.map((item) => {
-    return {
-      course: item.courseId,
-      quantity: 1,
-      price: item.price,
-    };
-  });
-
-  // Implement Products and validate product
-  // * Status Should be True and available
-  // * Check Quantity
-
-  let validCourseAndProduct = [];
-
-  if (coursesItems.length > 0) {
-    const validCourse = validateCourse(coursesItems);
-    validCourseAndProduct = [...validCourseAndProduct, ...validCourse];
-    // Object.assign(validCourseAndProduct, validCourse);
-  }
-
-  // Implement Products and validate product
-  // * Status Should be True and available
-  // * Check Quantity
-  if (productsItems.length > 0) {
-    const validProducts = await validateProducts(productsItems);
-    // return validProducts;
-    validCourseAndProduct = [...validCourseAndProduct, ...validProducts];
-    // Object.assign(validCourseAndProduct, validProducts);
-  }
-
-  if (!Array.isArray(validCourseAndProduct)) {
-    throw new ApiError(httpStatus.BAD_GATEWAY, 'System Could Not Retrive Product');
-  }
-
   // Calculate Total Price
-  const tprice = calculateTotalPrice(validCourseAndProduct);
-  const TAX_CONSTANT = Math.round(tprice * 0.08); // Assuming 8% tax rate;
+  const tprice = preOrderSummary.totalAmount;
+  const TAX_CONSTANT = preOrderSummary.tax;
   // Math.round(totalPriceValue * 0.08);
 
   // return validCourseAndProduct;
 
+  // Coupons
+  const appliedCoupons = [];
+  const validatedAppliedCoupons = preOrderSummary?.couponInfo?.validCoupons;
+
+  if (validatedAppliedCoupons?.length > 0) {
+    validatedAppliedCoupons.forEach((coupon) => {
+      appliedCoupons.push({
+        couponId: coupon.id,
+        code: coupon.code,
+        discountAmount: coupon.discount_value,
+        discountType: coupon.discount_type,
+      });
+    });
+  }
+
   const newOrder = await Order.create({
-    customer: user.id,
-    products: validCourseAndProduct,
-    ...(shippingAddress && { shippingAddress }),
+    customer: customerId,
+    products: preOrderSummary?.products,
+    ...(orderData?.shippingAddress && { shippingAddress: orderData?.shippingAddress }),
     paymentMethod: 'zarinpal',
     reference: refrenceId,
     total: tprice,
-    totalAmount: tprice + TAX_CONSTANT,
+    totalAmount: tprice,
+    appliedCoupons,
   });
 
   if (!newOrder) {
     throw new ApiError(httpStatus.EXPECTATION_FAILED, 'Order Could Not Save In DB');
   }
 
+  // if the `totalAmount` is 0 or less than 1000, we need to throw an error
+  // then we dont need for create Transaction and paymebnt method, just change the order status to `paid`
+  if (newOrder.totalAmount <= 0 || newOrder.totalAmount < 1000) {
+    // use the coupon if exist
+    if (preOrderSummary?.couponInfo?.validCoupons?.length > 0) {
+      const couponIds = preOrderSummary.couponInfo.validCoupons.map((coupon) => coupon.id);
+      const coupons = await CouponCode.find({ _id: { $in: couponIds } });
+      await Promise.all(coupons.map((coupon) => coupon.use()));
+    }
+
+    newOrder.status = 'confirmed';
+    newOrder.paymentStatus = 'paid';
+    await newOrder.save();
+    return { newOrder, transaction: null, payment: null };
+  }
+
   // *** payment ***
   // Send Payment Request to Get TOKEN
   const factorNumber = uuidv4();
-  console.log(config.CLIENT_URL);
-  console.log({ tprice: newOrder.totalAmount });
-  console.log('hooo');
+  // console.log(config.CLIENT_URL);
+  // console.log({ tprice: newOrder.totalAmount });
+  // console.log('hooo');
   const zarinpal = ZarinpalCheckout.create('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', true);
   const payment = await zarinpal.PaymentRequest({
     Amount: newOrder.totalAmount,
     CallbackURL: `${config.SERVER_API_URL}/order/${newOrder._id}/checkout`,
     Description: '---------',
-    Mobile: user.mobile,
+    Mobile: customer.mobile,
     order_id: factorNumber,
   });
 
@@ -912,7 +1062,7 @@ const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
   // Create New Transaction
   const transaction = new Transaction({
     // coachUserId: 'NOT_SELECTED',
-    userId: user.id,
+    userId: customerId,
     order_id: newOrder._id,
     amount: newOrder.totalAmount,
     factorNumber: payment.authority,
@@ -926,6 +1076,8 @@ const createOrderByUser = async ({ cartId, user, shippingAddress }) => {
   }
 
   return { newOrder, transaction, payment };
+  // ------------------
+
 };
 
 const updateOrder = async ({ orderId, orderData }) => {
@@ -1086,6 +1238,16 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
     order.status = 'confirmed';
     order.paymentStatus = 'paid';
     await order.save();
+
+    // apply coupons
+    if (order.appliedCoupons && order.appliedCoupons.length > 0) {
+      const validCouponsIds = order.appliedCoupons.map((coupon) => coupon.couponId.toString());
+      const coupons = await CouponCode.find({ _id: { $in: validCouponsIds } });
+      await Promise.all(coupons.map((coupon) => coupon.use()));
+    }
+
+    // Send Notification To user
+    // Send Notification To Admin
   }
 
   // call checkAndUpdateOrderProductPrices
@@ -1186,7 +1348,7 @@ module.exports = {
   getAllUsersOrders,
   getOrderById,
   getUserOrderById,
-  createOrder,
+  createOrderForAdmin,
   updateOrder,
   deleteOrder,
   calculateOrderSummary,

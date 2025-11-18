@@ -130,12 +130,16 @@ const getUserOrderById = catchAsync(async (req, res) => {
  *
  * @returns {void} - Sends a response with the newly created order data.
  */
-const createOrder = catchAsync(async (req, res) => {
+const createOrderForAdmin = catchAsync(async (req, res) => {
   if (!req.user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User Not Exist');
   }
 
-  const newOrder = await orderService.createOrder({ orderData: req.body, user: req.user });
+  if (req.user && req.user.role !== 'admin') {
+    throw new ApiError(httpStatus.FORBIDDEN, 'You Are Not Authorized To Access This Resource');
+  }
+
+  const newOrder = await orderService.createOrderForAdmin({ orderData: req.body, user: req.user });
   res.status(httpStatus.CREATED).send(newOrder);
 });
 
@@ -154,7 +158,7 @@ const createOrder = catchAsync(async (req, res) => {
  * @returns {void} - Sends a response with the newly created order data.
  */
 const createOrderByUser = catchAsync(async (req, res) => {
-  const { cartId, shippingAddress } = req.body;
+  const { cartId, shippingAddress, couponCodes = [], useUserWallet = false } = req.body;
 
   if (!req.user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User Not Exist');
@@ -162,7 +166,13 @@ const createOrderByUser = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Cart Not Defined In Request Body');
   }
 
-  const newOrder = await orderService.createOrderByUser({ cartId, user: req.user, shippingAddress });
+  const newOrder = await orderService.createOrderByUser({
+    cartId,
+    user: req.user,
+    shippingAddress,
+    couponCodes,
+    useUserWallet,
+  });
   res.status(httpStatus.CREATED).send(newOrder);
 });
 
@@ -271,8 +281,9 @@ const checkoutOrder = catchAsync(async (req, res) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Bad Request');
     }
 
-    res.redirect(`${config.CLIENT_URL}/checkout?order_id=${updatedOrder?.order?._id}&payment_status=${updatedOrder.order?.paymentStatus}`);
+    // return res.status(httpStatus.OK).send(updatedOrder);
 
+  res.redirect(`${config.CLIENT_URL}/checkout?order_id=${updatedOrder?.order?._id}&payment_status=${updatedOrder.order?.paymentStatus}`);
 
   // res.status(httpStatus.OK).send(updatedOrder);
 });
@@ -312,7 +323,7 @@ module.exports = {
   getOrderById,
   getUserOrderById,
   getAllUserOrders,
-  createOrder,
+  createOrderForAdmin,
   updateOrder,
   deleteOrder,
   createOrderByUser,

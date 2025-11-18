@@ -5,7 +5,7 @@ const validate = require('../../../middlewares/validate');
 const {
   getAllOrders,
   getOrderById,
-  createOrder,
+  createOrderForAdmin,
   calculateOrderSummary,
   calculateOrderSummaryForAdmin,
   createOrderByUser,
@@ -27,7 +27,7 @@ const orderRoute = express.Router();
 orderRouteForAdmin
   .route('/')
   .get(auth(), getAllOrders) // Retrieve all orders of customers
-  .post(auth(), validate(createOrderValidation), createOrder); // Create a new order By Admin
+  .post(auth(), createOrderForAdmin); // Create a new order By Admin
 
 orderRouteForAdmin.post('/calculate-order-summary-admin', auth(), calculateOrderSummaryForAdmin);
 

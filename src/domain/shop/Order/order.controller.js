@@ -192,7 +192,7 @@ const calculateOrderSummaryForAdmin = catchAsync(async (req, res) => {
 });
 
 const calculateOrderSummary = catchAsync(async (req, res) => {
-  const { cartId, couponCodes = [] } = req.body;
+  const { cartId, couponCodes = [], useUserWallet = false } = req.body;
 
   if (!req.user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User Not Exist');
@@ -200,7 +200,7 @@ const calculateOrderSummary = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Cart Not Defined In Request Body');
   }
 
-  const summary = await orderService.calculateOrderSummary({ cartId, couponCodes });
+  const summary = await orderService.calculateOrderSummary({ cartId, user: req.user, couponCodes, useUserWallet });
   res.status(httpStatus.OK).send(summary);
 });
 

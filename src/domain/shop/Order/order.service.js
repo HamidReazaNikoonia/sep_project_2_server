@@ -532,7 +532,7 @@ const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
 /**
  * Calculate Order Summary
  */
-const calculateOrderSummary = async ({ cartId, couponCodes = [], useUserWallet = false }) => {
+const calculateOrderSummary = async ({ cartId, user, couponCodes = [], useUserWallet = false }) => {
   if (!mongoose.Types.ObjectId.isValid(cartId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Cart ID');
   }
@@ -725,12 +725,27 @@ const calculateOrderSummary = async ({ cartId, couponCodes = [], useUserWallet =
     }
   }
 
+  // if useUserWallet is true, we need to subtract the user's wallet amount from the total amount
+  let walletDeductAmount = user?.wallet_amount || 0;
+  if (useUserWallet) {
+    if (user?.wallet_amount && user?.wallet_amount > 0) {
+      if (totalAmount < user?.wallet_amount) {
+        walletDeductAmount = totalAmount;
+      }
+      totalAmount -= user?.wallet_amount;
+      if (totalAmount < 0) {
+        totalAmount = 0;
+      }
+    }
+  }
+
   return {
     products: validCourseAndProduct,
     total: tprice,
     tax: TAX_CONSTANT,
     totalAmountBeforeDiscount: tprice + TAX_CONSTANT + (hasProductItemProperty ? CONSTANT_SHIPPING_AMOUNT : 0),
     totalAmount,
+    ...(useUserWallet && { userWalletAmount: walletDeductAmount }),
     ...(hasProductItemProperty && { shippingAmount: CONSTANT_SHIPPING_AMOUNT }),
     ...(couponCodes.length > 0 && {
       couponInfo: {
@@ -967,12 +982,10 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
   // ------------------
   const preOrderSummary = await calculateOrderSummary({
     cartId,
+    user,
     couponCodes,
     useUserWallet,
   });
-
-
-  return preOrderSummary;
 
   if (!preOrderSummary) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Order Summary Could Not Be Calculated');
@@ -1008,9 +1021,9 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
   }
 
   const newOrder = await Order.create({
-    customer: customerId,
+    customer: user._id,
     products: preOrderSummary?.products,
-    ...(orderData?.shippingAddress && { shippingAddress: orderData?.shippingAddress }),
+    ...(shippingAddress && { shippingAddress }),
     paymentMethod: 'zarinpal',
     reference: refrenceId,
     total: tprice,
@@ -1032,10 +1045,21 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
       await Promise.all(coupons.map((coupon) => coupon.use()));
     }
 
+    if (useUserWallet) {
+      // eslint-disable-next-line no-param-reassign
+      user.wallet_amount -= preOrderSummary.userWalletAmount;
+      await user.save();
+    }
+
     newOrder.status = 'confirmed';
     newOrder.paymentStatus = 'paid';
     await newOrder.save();
-    return { newOrder, transaction: null, payment: null };
+    return {
+      newOrder,
+      transaction: null,
+      payment: null,
+      ...(useUserWallet && { userWalletAmount: preOrderSummary.userWalletAmount || 0 }),
+    };
   }
 
   // *** payment ***
@@ -1049,7 +1073,7 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
     Amount: newOrder.totalAmount,
     CallbackURL: `${config.SERVER_API_URL}/order/${newOrder._id}/checkout`,
     Description: '---------',
-    Mobile: customer.mobile,
+    Mobile: user.mobile,
     order_id: factorNumber,
   });
 
@@ -1062,7 +1086,7 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
   // Create New Transaction
   const transaction = new Transaction({
     // coachUserId: 'NOT_SELECTED',
-    userId: customerId,
+    userId: user._id,
     order_id: newOrder._id,
     amount: newOrder.totalAmount,
     factorNumber: payment.authority,
@@ -1076,8 +1100,6 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
   }
 
   return { newOrder, transaction, payment };
-  // ------------------
-
 };
 
 const updateOrder = async ({ orderId, orderData }) => {

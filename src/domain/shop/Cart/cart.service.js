@@ -17,7 +17,10 @@ function calcTotalPrice(cart) {
     totalPrice += element.quantity * element.price;
   });
 
+  // eslint-disable-next-line no-param-reassign
   cart.totalPrice = totalPrice;
+
+  return totalPrice;
 }
 
 
@@ -79,13 +82,24 @@ const addProductToCart = async ({ product, quantity, userId }) => {
     userId: userId,
   });
 
+  let actualPrice;
+  // check if product is `is_fire_sale == true`, then calculate price
+  const isFireSalePrice = product.is_fire_sale;
+
+  if (isFireSalePrice) {
+    actualPrice = product.price_discount ||  product.price_real;
+  } else {
+    actualPrice = product.price_real;
+  }
+
   // If user have not Cart in the DB
   // we will create new Cart for the User
   if (!isCartExist) {
+    // eslint-disable-next-line new-cap
     let newCart = new cartModel({
       userId,
-      cartItem: [{ productId: product._id, quantity, price: product.price * quantity }],
-      totalPrice: product.price * quantity,
+      cartItem: [{ productId: product._id, quantity, price: actualPrice * quantity }],
+      totalPrice: actualPrice * quantity,
     });
     await newCart.save();
 
@@ -101,13 +115,13 @@ const addProductToCart = async ({ product, quantity, userId }) => {
     return element.productId == product._id?.toString();
   });
 
-  console.log('kir');
+  console.log('item');
   console.log(item);
 
   if (item) {
     item.quantity += quantity || 1;
   } else {
-    isCartExist.cartItem.push({ productId: product._id, quantity, price: product.price * quantity });
+    isCartExist.cartItem.push({ productId: product._id, quantity, price: actualPrice * quantity });
   }
   calcTotalPrice(isCartExist);
 
@@ -117,7 +131,7 @@ const addProductToCart = async ({ product, quantity, userId }) => {
 };
 
 const getLoggedUserCart = async ({ userId }) => {
-  const cartItems = await cartModel.findOne({ userId }).populate('cartItem.productId');
+  const cartItems = await cartModel.findOne({ userId }).populate('cartItem.productId').populate('cartItem.courseId');
   return cartItems;
 };
 

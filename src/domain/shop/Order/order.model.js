@@ -70,6 +70,11 @@ const orderSchema = mongoose.Schema(
       required: true,
       min: 0,
     },
+    used_wallet_amount: {
+      type: Number,
+      required: false,
+      min: 0,
+    },
     final_order_price: {
       type: Number,
       required: false,

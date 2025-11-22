@@ -1029,6 +1029,7 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
     total: tprice,
     totalAmount: tprice,
     appliedCoupons,
+    used_wallet_amount: preOrderSummary.userWalletAmount || 0,
   });
 
   if (!newOrder) {
@@ -1053,6 +1054,11 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
 
     newOrder.status = 'confirmed';
     newOrder.paymentStatus = 'paid';
+
+    if (useUserWallet) {
+      newOrder.used_wallet_amount = preOrderSummary.userWalletAmount || 0;
+    }
+
     await newOrder.save();
     return {
       newOrder,
@@ -1266,6 +1272,16 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
       const validCouponsIds = order.appliedCoupons.map((coupon) => coupon.couponId.toString());
       const coupons = await CouponCode.find({ _id: { $in: validCouponsIds } });
       await Promise.all(coupons.map((coupon) => coupon.use()));
+    }
+
+    // update user wallet amount
+    if (order.used_wallet_amount) {
+      const user = await UserModel.findById(order.customer);
+      if (!user) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'User Could Not Fount');
+      }
+      user.wallet_amount -= order.used_wallet_amount;
+      await user.save();
     }
 
     // Send Notification To user

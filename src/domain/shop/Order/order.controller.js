@@ -256,18 +256,14 @@ const deleteOrder = catchAsync(async (req, res) => {
  */
 const checkoutOrder = catchAsync(async (req, res) => {
   const { orderId } = req.params;
-  const {Authority, Status} = req.query;
+  const { Authority, Status } = req.query;
 
-
-  if (Status !== "OK") {
+  if (Status !== 'OK') {
     return res.redirect(`${config.CLIENT_URL}/checkout?order_id=${orderId}&payment_status=false`);
-
   }
 
 
   const updatedOrder = await orderService.checkoutOrder({ orderId, Authority, Status });
-
-
 
     // navigate user to the Application with query params
     // Query params => order_id, transaction_id, payment_status

@@ -12,6 +12,7 @@ const categorySchema = mongoose.Schema(
     parent: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Course_Session_Category',
+      autopopulate: true,
       default: null,
     },
     path: {
@@ -35,6 +36,7 @@ const categorySchema = mongoose.Schema(
 // Add plugins
 categorySchema.plugin(toJSON);
 categorySchema.plugin(paginate);
+categorySchema.plugin(require('mongoose-autopopulate'));
 
 // Pre-save hook to set path and level
 categorySchema.pre('save', async function (next) {

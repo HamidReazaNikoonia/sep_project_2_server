@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const Notification = require('./notification.model');
 const User = require('../../models/user.model');
 const ApiError = require('../../utils/ApiError');
+const { Send: sendSMS } = require('../../services/sms/smsProvider');
 
 /**
  * Create a notification
@@ -15,6 +16,11 @@ const ApiError = require('../../utils/ApiError');
  */
 const createNotification = async (notificationBody) => {
   const notification = await Notification.create(notificationBody);
+
+  // Send SMS to user
+  if (notification.channels.includes('sms')) {
+    await sendSMS(notification.customer.mobile, notification.message);
+  }
 
   // Trigger delivery process
   // eslint-disable-next-line no-use-before-define

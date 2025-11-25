@@ -13,9 +13,8 @@ const TransactionSchema = new mongoose.Schema(
       autopopulate: true,
     },
     reference_id: {
-      type: mongoose.Types.ObjectId,
-      ref: 'Reference',
-      autopopulate: false,
+      type: String,
+      required: false,
     },
     order_id: {
       type: mongoose.Types.ObjectId,

@@ -26,6 +26,10 @@ const CouponCode = require('../../CouponCodes/couponCodes.model');
 
 const OrderId = require('../../../utils/orderId');
 
+
+// Constants For Taxes
+const TAX_RATE = 0.08;
+
 // helper
 
 const calculateTotalPrice = (products) => {
@@ -441,7 +445,7 @@ const calculateOrderSummaryForAdmin = async ({ items, couponCodes = [] }) => {
   // Calculate Total Price
   const tprice = calculateTotalPrice(validCourseAndProduct);
 
-  const TAX_CONSTANT = Math.round(tprice * 0.08); // Assuming 8% tax rate;
+  const TAX_CONSTANT = Math.round(tprice * TAX_RATE); // Assuming 8% tax rate;
   const CONSTANT_SHIPPING_AMOUNT = 10000;
   let totalAmount = tprice + TAX_CONSTANT;
 
@@ -658,7 +662,7 @@ const calculateOrderSummary = async ({ cartId, user, couponCodes = [], useUserWa
   // Calculate Total Price
   const tprice = calculateTotalPrice(validCourseAndProduct);
 
-  const TAX_CONSTANT = Math.round(tprice * 0.08); // Assuming 8% tax rate;
+  const TAX_CONSTANT = Math.round(tprice * TAX_RATE); // Assuming 8% tax rate;
   const CONSTANT_SHIPPING_AMOUNT = 10000;
   let totalAmount = tprice + TAX_CONSTANT;
 
@@ -999,7 +1003,12 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
   const refrenceId = `${orderIdGenerator.generate()}-${randomRef}`;
 
   // Calculate Total Price
+
+  // amount user should pay (final price)
   const tprice = preOrderSummary.totalAmount;
+
+  // total price
+  const sumOfAllItemsPriceWithoutDiscount = preOrderSummary.total;
   const TAX_CONSTANT = preOrderSummary.tax;
   // Math.round(totalPriceValue * 0.08);
 
@@ -1026,8 +1035,12 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
     ...(shippingAddress && { shippingAddress }),
     paymentMethod: 'zarinpal',
     reference: refrenceId,
-    total: tprice,
+    total: sumOfAllItemsPriceWithoutDiscount,
     totalAmount: tprice,
+    taxes: TAX_CONSTANT,
+    taxRate: TAX_RATE,
+    deliveryFees: preOrderSummary.shippingAmount || 0,
+    total_discount_price: preOrderSummary.totalAmountBeforeDiscount - preOrderSummary.totalAmount,
     appliedCoupons,
     used_wallet_amount: preOrderSummary.userWalletAmount || 0,
   });
@@ -1263,7 +1276,7 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
     transaction.payment_details = payment_details;
     await transaction.save();
 
-    order.status = 'confirmed';
+    // order.status = 'confirmed';
     order.paymentStatus = 'paid';
     await order.save();
 

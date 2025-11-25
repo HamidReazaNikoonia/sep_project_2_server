@@ -4,7 +4,7 @@ const objectId = mongoose.Types.ObjectId;
 
 // Enum Constants
 const orderStatusEnum = ['waiting', 'confirmed', 'shipped', 'delivered', 'cancelled', 'returned', 'finish'];
-const paymentMethodEnum = ['credit_card', 'zarinpal', 'bank_transfer', 'cash_on_delivery'];
+const paymentMethodEnum = ['credit_card', 'zarinpal', 'bank_transfer', 'cash_on_delivery', 'wallet_and_zarinpal'];
 
 // Create Order Schema
 const orderSchema = mongoose.Schema(

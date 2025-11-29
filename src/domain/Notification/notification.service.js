@@ -9,6 +9,16 @@ const User = require('../../models/user.model');
 const ApiError = require('../../utils/ApiError');
 const { Send: sendSMS } = require('../../services/sms/smsProvider');
 
+const orderStatusUpdateNotificationTypes = {
+  waiting: 'در انتظار تایید',
+  confirmed: 'تایید شد',
+  shipped: 'ارسال شد',
+  delivered: 'تحویل داده شد',
+  cancelled: 'لغو شد',
+  returned: 'بازگشت شد',
+  finish: 'تکمیل شد',
+};
+
 /**
  * Create a notification
  * @param {Object} notificationBody
@@ -418,6 +428,48 @@ const sendOrderCreationNotification = async (userId, orderId, orderDetails = {})
 };
 
 /**
+ * Send order status update notification
+ * @param {ObjectId} userId
+ * @param {ObjectId} orderId
+ * @param {string} status
+ */
+const sendOrderStatusUpdateNotification = async (userId, orderId, status, orderData) => {
+  const notificationData = {
+    customer: userId,
+    notification_type: 'order_status_update',
+    priority: 'urgent',
+    title: 'بروزرسانی سفارش',
+    message: `سفارش شما با شناسه ${orderData.reference || orderId} به وضعیت "${
+      orderStatusUpdateNotificationTypes[status]
+    }" بروزرسانی شد.`,
+    channels: ['in_app', 'sms'],
+    state: {
+      order_id: orderId,
+      status,
+    },
+    content: {
+      action_url: `/orders/${orderId}`,
+    },
+    actions: [
+      {
+        id: 'view_order',
+        label: 'مشاهده سفارش',
+        url: `/orders/${orderId}`,
+        style: 'primary',
+      },
+    ],
+    metadata: {
+      source: 'order_service',
+    },
+    sender: {
+      type: 'system',
+    },
+  };
+
+  return createNotification(notificationData);
+};
+
+/**
  * Send payment notification
  * @param {ObjectId} userId
  * @param {ObjectId} orderId
@@ -723,6 +775,7 @@ module.exports = {
   sendProfileUpdateNotification,
   sendProfileVerificationNotification,
   sendOrderCreationNotification,
+  sendOrderStatusUpdateNotification,
   sendPaymentNotification,
   sendCourseEnrollmentNotification,
   sendSessionReminderNotification,

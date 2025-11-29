@@ -155,6 +155,20 @@ couponCodeSchema.methods.use = async function () {
   return true;
 };
 
+// Method to Redo the coupon usage
+couponCodeSchema.methods.redo = async function () {
+  if (!this.isValid()) {
+    return false;
+  }
+
+  this.current_uses -= 1;
+  if (this.current_uses < 0) {
+    this.current_uses = 0;
+  }
+  await this.save();
+  return true;
+};
+
 const CouponCode = mongoose.model('CouponCode', couponCodeSchema);
 
 module.exports = CouponCode;

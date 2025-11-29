@@ -32,6 +32,7 @@ const notificationSchema = new mongoose.Schema(
         'system_maintenance',
         'promotional',
         'announcement',
+        'order_status_update',
       ],
       required: true,
       index: true,

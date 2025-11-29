@@ -20,12 +20,18 @@ const APIFeatures = require('../../../utils/APIFeatures');
 const ZarinpalCheckout = require('../../../services/payment');
 const config = require('../../../config/config');
 
+// Notification service
+const {
+  sendOrderCreationNotification,
+  sendPaymentNotification,
+  sendOrderStatusUpdateNotification,
+} = require('../../Notification/notification.service');
+
 // coupon codes service
 const { checkCoupon, calculateCouponDiscount } = require('../../CouponCodes/couponCodes.service');
 const CouponCode = require('../../CouponCodes/couponCodes.model');
 
 const OrderId = require('../../../utils/orderId');
-
 
 // Constants For Taxes
 const TAX_RATE = 0.08;
@@ -107,6 +113,84 @@ const validateProducts = async (products) => {
 
   return validProducts;
 };
+
+async function redoOrderCoupons(order) {
+  const couponIds = [...new Set((order.appliedCoupons || []).map((item) => item.couponId))].filter((id) =>
+    mongoose.Types.ObjectId.isValid(id)
+  );
+
+  if (couponIds.length === 0) {
+    return;
+  }
+
+  const coupons = await CouponCode.find({ _id: { $in: couponIds } }).select('current_uses');
+
+  if (coupons.length === 0) {
+    return;
+  }
+
+  const bulkOps = coupons.map((coupon) => ({
+    updateOne: {
+      filter: { _id: coupon._id },
+      update: {
+        $set: { current_uses: Math.max(0, coupon.current_uses - 1) },
+      },
+    },
+  }));
+
+  await CouponCode.bulkWrite(bulkOps, { ordered: false });
+}
+
+async function restockOrderProducts(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return;
+  }
+
+  const invalidItems = items.filter(
+    (item) => !mongoose.Types.ObjectId.isValid(item.product) || !item.quantity || item.quantity <= 0
+  );
+
+  if (invalidItems.length > 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid product data for restocking');
+  }
+
+  const bulkOps = items.map((item) => ({
+    updateOne: {
+      filter: { _id: item.product },
+      update: [
+        {
+          $set: {
+            countInStock: { $add: ['$countInStock', item.quantity] },
+            is_available: true,
+          },
+        },
+      ],
+    },
+  }));
+
+  await Product.bulkWrite(bulkOps, { ordered: false });
+}
+
+async function removeOrderCoursesFromUser(order) {
+  const courseIds = [
+    ...new Set((order.products || []).filter((item) => item.course).map((item) => item.course?._id || item.course)),
+  ].filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+  if (courseIds.length === 0) {
+    return;
+  }
+
+  const customerId = order.customer?._id || order.customer;
+  if (!mongoose.Types.ObjectId.isValid(customerId)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid customer id for order redo');
+  }
+
+  await UserModel.findByIdAndUpdate(customerId, {
+    $pull: { enrolled_courses: { $in: courseIds } },
+  });
+}
+
+// -- helper --- end
 
 const getAllOrders = async ({ filter, options }) => {
   // Build MongoDB aggregation pipeline
@@ -1065,11 +1149,34 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
       await user.save();
     }
 
-    newOrder.status = 'confirmed';
+    // newOrder.status = 'confirmed';
     newOrder.paymentStatus = 'paid';
 
     if (useUserWallet) {
       newOrder.used_wallet_amount = preOrderSummary.userWalletAmount || 0;
+    }
+
+    // 1- send notification to user
+    // 2- send notification to admin
+    await sendOrderCreationNotification(user._id, newOrder._id, newOrder);
+
+    // 3- decrement product count
+    const productsWithProductProperty = (newOrder?.products || []).filter((item) => item.product);
+    if (productsWithProductProperty.length > 0) {
+      const arg = productsWithProductProperty.map((item) => ({
+        productId: item.product,
+        quantity: item.quantity,
+      }));
+
+      // return {arg: newOrder?.products};
+      // eslint-disable-next-line no-use-before-define
+      await decrementProductCount(arg);
+    }
+
+    // 4- enroll user to courses
+    if (newOrder.products.some((item) => item.course)) {
+      const courses = newOrder.products.filter((item) => item.course).map((item) => item.course);
+      await UserModel.findByIdAndUpdate(user._id, { $push: { enrolled_courses: { $each: courses } } });
     }
 
     await newOrder.save();
@@ -1137,10 +1244,56 @@ const updateOrder = async ({ orderId, orderData }) => {
     throw new ApiError(httpStatus.EXPECTATION_FAILED, 'There Is no Data For Update Order');
   }
 
-  const updatedOrder = await Order.findByIdAndUpdate(orderId, orderData, { new: true });
+  const updatedOrder = await Order.findByIdAndUpdate(orderId, data, { new: true });
   if (!updatedOrder) {
     throw new ApiError(httpStatus.EXPECTATION_FAILED, 'Order Could Not Be Updated');
   }
+
+  // if user want to change status to `cancelled`, we need to check if the order is already paid
+  if (orderData.status === 'cancelled') {
+    if (updatedOrder.paymentStatus === 'paid') {
+      if (orderData.returnMoneyBackToWallet) {
+        const user = await UserModel.findById(updatedOrder.customer);
+        if (!user) {
+          throw new ApiError(httpStatus.NOT_FOUND, 'Order Not Found');
+        }
+        user.wallet_amount += updatedOrder.totalAmount;
+        await user.save();
+      }
+
+      // if user request toredo coupons and order has applied coupons, we need to redo the coupons
+      if (orderData.redoCoupons && updatedOrder.appliedCoupons && updatedOrder.appliedCoupons.length > 0) {
+        await redoOrderCoupons(updatedOrder);
+      }
+
+      // if user request to redo products and order has products, we need to redo the products
+      if (orderData.redoOrderProducts && updatedOrder.products && updatedOrder.products.length > 0) {
+        // collect products ids and quantities
+        const products = updatedOrder.products
+          .filter((item) => item.product)
+          .map((item) => ({
+            product: item.product?._id || item.product,
+            quantity: item.quantity > 0 ? item.quantity : 1,
+          }));
+        if (products.length > 0) {
+          await restockOrderProducts(products);
+        }
+      }
+
+      // if user request to remove courses from user and order has courses, we need to remove the courses from user
+      if (orderData.redoOrderProducts && updatedOrder.products && updatedOrder.products.length > 0) {
+        const courses = updatedOrder.products.filter((item) => item.course);
+        if (courses.length > 0) {
+          await removeOrderCoursesFromUser(updatedOrder);
+        }
+      }
+    }
+  }
+
+  // Send Notification to User when order status is updated
+  await sendOrderStatusUpdateNotification(updatedOrder.customer._id, updatedOrder._id, updatedOrder.status, {
+    reference: updatedOrder.reference,
+  });
 
   return { data: updatedOrder };
 };
@@ -1268,10 +1421,11 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
   // Transaction Pay Successfully
   if (payment.data.code === 100 && payment.data.message === 'Paid') {
     // Delete Cart
-    await cartModel.deleteOne({ userId: order.customer });
+    // await cartModel.deleteOne({ userId: order.customer });
 
     // Update Transaction
     transaction.status = true;
+    transaction.reference_id = payment.data.ref_id;
     transaction.payment_reference_id = payment.data.ref_id;
     transaction.payment_details = payment_details;
     await transaction.save();
@@ -1297,8 +1451,35 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
       await user.save();
     }
 
-    // Send Notification To user
-    // Send Notification To Admin
+    // 1- Send Notification To user
+    // 2- Send Notification To Admin
+    await sendOrderCreationNotification(order.customer, order._id, order);
+    await sendPaymentNotification(order.customer, order._id, true, {
+      amount: order.totalAmount,
+      transactionId: transaction._id,
+      reference: transaction.reference_id,
+    });
+
+    // 3- decrement product count
+    const productsWithProductProperty = (order?.products || []).filter((item) => item.product);
+    if (productsWithProductProperty.length > 0) {
+      const arg = productsWithProductProperty.map((item) => ({
+        productId: item.product?.id,
+        quantity: item.quantity,
+      }));
+      // eslint-disable-next-line no-use-before-define
+      await decrementProductCount(arg);
+      // console.log('decrementProductCountResult', decrementProductCountResult);
+      // if (result.modifiedCount !== productsWithProductProperty.length) {
+      //   throw new ApiError(httpStatus.BAD_REQUEST, 'Failed to decrement product count');
+      // }
+
+      // 4- Enroll user to courses
+      if (order.products.some((item) => item.course)) {
+        const courses = order.products.filter((item) => item.course);
+        await UserModel.findByIdAndUpdate(order.customer, { $push: { enrolled_courses: { $each: courses } } });
+      }
+    }
   }
 
   // call checkAndUpdateOrderProductPrices
@@ -1310,30 +1491,86 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
 // STATIC METHODS
 
 // Function to find a product by ID and decrement the count by 1
-async function decrementProductCount(productId) {
+// Function to decrement product counts for multiple products in a single operation
+async function decrementProductCount(items) {
   try {
-    // Ensure the product ID is valid
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-      throw new Error('Invalid product ID');
+    // Validate input
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error('Items must be a non-empty array');
     }
 
-    // Find the product by ID and decrement the count
-    const updatedProduct = await Product.findOneAndUpdate(
-      { _id: productId, count: { $gt: 0 } }, // Ensure count is greater than 0 to avoid negative values
-      { $inc: { count: -1 } },
-      { new: true, useFindAndModify: false } // Return the updated document
+    // console.log('decrementProductCount items', items);
+
+    // Validate all product IDs and quantities
+    const invalidItems = items.filter(
+      (item) => !mongoose.Types.ObjectId.isValid(item.productId) || !item.quantity || item.quantity <= 0
     );
 
-    if (!updatedProduct) {
-      throw new Error('Product not found or count is already 0');
+    if (invalidItems.length > 0) {
+      throw new Error('Invalid product ID or quantity in items');
+    }
+
+    // Build bulk write operations with conditional is_available update
+    const bulkOps = items.map((item) => ({
+      updateOne: {
+        filter: {
+          _id: item.productId,
+          countInStock: { $gte: item.quantity },
+        },
+        update: [
+          {
+            $set: {
+              countInStock: { $subtract: ['$countInStock', item.quantity] },
+              is_available: {
+                $cond: {
+                  if: { $lte: [{ $subtract: ['$countInStock', item.quantity] }, 0] },
+                  then: false,
+                  else: '$is_available',
+                },
+              },
+            },
+          },
+        ],
+      },
+    }));
+
+    // Execute bulk write operation
+    const result = await Product.bulkWrite(bulkOps, { ordered: false });
+
+    // Check if all updates were successful
+    if (result.modifiedCount !== items.length) {
+      // Some products weren't updated (either not found or insufficient stock)
+      // Fetch the products to see which ones failed
+      const productIds = items.map((item) => item.productId);
+      const products = await Product.find({ _id: { $in: productIds } }, { _id: 1, countInStock: 1 });
+
+      const productStockMap = products.reduce((acc, product) => {
+        acc[product._id.toString()] = product.countInStock;
+        return acc;
+      }, {});
+
+      const failedItems = items.filter((item) => {
+        const stock = productStockMap[item.productId.toString()];
+        return stock === undefined || stock < item.quantity;
+      });
+
+      if (failedItems.length > 0) {
+        throw new Error(
+          `Insufficient stock or product not found for items: ${failedItems.map((item) => item.productId).join(', ')}`
+        );
+      }
     }
 
     // eslint-disable-next-line no-console
-    console.log('Updated Product:', updatedProduct);
-    return updatedProduct;
+    console.log(`Successfully updated ${result.modifiedCount} products`);
+    return {
+      success: true,
+      modifiedCount: result.modifiedCount,
+      message: `Successfully decremented stock for ${result.modifiedCount} products`,
+    };
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('Error updating product count:', error.message);
+    console.error('Error updating product counts:', error.message);
     throw error;
   }
 }

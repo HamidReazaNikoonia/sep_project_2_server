@@ -214,6 +214,13 @@ const userSchema = mongoose.Schema(
         autopopulate: true,
       },
     ],
+    enrolled_courses: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Course',
+        autopopulate: false,
+      },
+    ],
     wallet_amount: {
       type: Number,
       default: 0,

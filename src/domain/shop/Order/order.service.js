@@ -1175,11 +1175,15 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
 
     // 4- enroll user to courses
     if (newOrder.products.some((item) => item.course)) {
-      const courses = newOrder.products.filter((item) => item.course).map((item) => item.course);
+      const courses = newOrder.products.filter((item) => item.course).map((item) => item.course?._id || item.course);
       await UserModel.findByIdAndUpdate(user._id, { $push: { enrolled_courses: { $each: courses } } });
     }
 
     await newOrder.save();
+
+    // Delete Cart
+    await cartModel.deleteOne({ userId: user._id });
+
     return {
       newOrder,
       transaction: null,
@@ -1421,7 +1425,7 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
   // Transaction Pay Successfully
   if (payment.data.code === 100 && payment.data.message === 'Paid') {
     // Delete Cart
-    // await cartModel.deleteOne({ userId: order.customer });
+    await cartModel.deleteOne({ userId: order.customer });
 
     // Update Transaction
     transaction.status = true;
@@ -1476,8 +1480,10 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
 
       // 4- Enroll user to courses
       if (order.products.some((item) => item.course)) {
-        const courses = order.products.filter((item) => item.course);
-        await UserModel.findByIdAndUpdate(order.customer, { $push: { enrolled_courses: { $each: courses } } });
+        const courseIds = order.products
+          .filter((item) => item.course)
+          .map((item) => new mongoose.Types.ObjectId(item.course?._id || item.course));
+        await UserModel.findByIdAndUpdate(order.customer, { $push: { enrolled_courses: { $each: courseIds } } });
       }
     }
   }

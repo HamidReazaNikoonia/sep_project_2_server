@@ -21,7 +21,21 @@ const createCourse = {
     title: Joi.string().trim().required().min(3).max(100),
     sub_title: Joi.string().trim().required().min(3).max(100),
     description: Joi.string().required().min(10).max(2000),
-    description_long: Joi.string().min(10).max(2000),
+    // description_long: Joi.string().min(10).max(2000),
+    details: Joi.array()
+      .items(
+        Joi.object().keys({
+          header_title: Joi.string().trim().required().min(3).max(100),
+          description: Joi.string().trim().required().min(10).max(2000),
+        })
+      )
+      .min(1)
+      .required(),
+    preview_media: Joi.object().keys({
+      video_file: Joi.string().custom(objectId),
+      preview_image_desktop: Joi.string().custom(objectId),
+      preview_image_mobile: Joi.string().custom(objectId),
+    }),
     tumbnail: Joi.string().custom(objectId),
     // price: Joi.number().required().min(10000),
     sample_media: Joi.array()

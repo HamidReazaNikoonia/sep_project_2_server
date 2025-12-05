@@ -66,11 +66,34 @@ const courseSessionSchema = new Schema(
       required: true,
     },
     description_long: String,
+    details: [
+      {
+        header_title: String,
+        description: String,
+      },
+    ],
     tumbnail: {
       type: Schema.Types.ObjectId,
       required: true,
       ref: 'Upload',
       autopopulate: true,
+    },
+    preview_media: {
+      video_file: {
+        type: Schema.Types.ObjectId,
+        ref: 'Upload',
+        autopopulate: true,
+      },
+      preview_image_desktop: {
+        type: Schema.Types.ObjectId,
+        ref: 'Upload',
+        autopopulate: true,
+      },
+      preview_image_mobile: {
+        type: Schema.Types.ObjectId,
+        ref: 'Upload',
+        autopopulate: true,
+      },
     },
     sample_media: {
       type: [

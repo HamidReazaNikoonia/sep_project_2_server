@@ -13,7 +13,7 @@ const APIFeatures = require('../../utils/APIFeatures');
 const ZarinpalCheckout = require('../../services/payment');
 const config = require('../../config/config');
 const queryParamsStringToArray = require('../../utils/queryParamsStringToArray');
-
+const { checkCouponForCourseSession, calculateCouponDiscount } = require('../CouponCodes/couponCodes.service');
 // Models
 const Coach = require('../Coach/coach.model');
 const User = require('../../models/user.model'); // Assuming User model exists
@@ -1686,108 +1686,40 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
     }
   }
 
-  console.log('totalPackagePrice', totalPackagePrice);
+  /**
+   * Prices Guide
+   * originalAmount => program price || program discounted price
+   */
 
   const originalAmount = courseSessionclassProgram.price_discounted || courseSessionclassProgram.price_real;
-  const validCoupons = [];
-  const invalidCoupons = [];
+  let finalPrice = originalAmount;
   let totalDiscount = 0;
 
-  // Process each coupon code
-  for (const code of couponCodes) {
-    try {
-      const coupon = await CouponCode.findOne({
-        code: code.toUpperCase(),
-        is_active: true,
-        // valid_from: { $lte: new Date() },
-        // valid_until: { $gte: new Date() },
-        $expr: { $lt: ['$current_uses', '$max_uses'] },
-      });
+  const couponResult = await checkCouponForCourseSession({
+    couponCodes,
+    order_variant: 'COURSE_SESSION',
+    orderItems: courseSessionclassProgram,
+  });
 
-      console.log('coupon--', coupon);
-
-      // console.log('coupon', coupon);
-
-      if (!coupon) {
-        invalidCoupons.push({
-          code,
-          reason: 'Invalid or expired coupon code',
-        });
-        continue;
-      }
-
-      // Check minimum purchase amount
-      if (originalAmount < coupon.min_purchase_amount) {
-        invalidCoupons.push({
-          code,
-          reason: `Minimum purchase amount of ${coupon.min_purchase_amount} required`,
-        });
-        continue;
-      }
-
-      // Check course applicability
-      if (coupon.applicable_courses?.length > 0) {
-        const isApplicable = coupon.applicable_courses.some(
-          (ac) =>
-            (ac.target_type === 'COURSE_SESSION' && ac.target_id.equals(CourseSession)) ||
-            (ac.target_type === 'COURSE' && ac.target_id.equals(CourseSession.courseId))
-        );
-
-        if (!isApplicable) {
-          invalidCoupons.push({
-            code,
-            reason: 'Coupon not applicable for this course/session',
-          });
-          continue;
-        }
-      }
-
-      console.log(user);
-      // For referral type coupons, check if it's created by the same user
-      // if (coupon.type === 'REFERRAL' && coupon.created_by.toString() === user._id.toString()) {
-      //   invalidCoupons.push({
-      //     code,
-      //     reason: 'Cannot use your own referral code',
-      //   });
-      //   continue;
-      // }
-
-      // Calculate discount
-      let discountAmount;
-      if (coupon.discount_type === 'PERCENTAGE') {
-        // Math.min ensures the discount doesn't exceed the original amount
-        // e.g. if discount is 150%, we cap it at 100% of original amount
-        discountAmount = Math.min((originalAmount * coupon.discount_value) / 100, originalAmount);
-      } else {
-        // FIXED_AMOUNT
-        discountAmount = Math.min(coupon.discount_value, originalAmount);
-      }
-
-      totalDiscount += discountAmount;
-      validCoupons.push({
-        couponId: coupon._id,
-        discountAmount,
-      });
-    } catch (error) {
-      console.log(error);
-      console.log('Error processing coupon');
-
-      invalidCoupons.push({
-        code,
-        reason: 'Error processing coupon',
-      });
-    }
+  if (couponResult?.validCoupons?.length > 0) {
+    const discountResult = calculateCouponDiscount(couponResult?.validCoupons || [], originalAmount);
+    finalPrice = discountResult?.finalPrice;
+    totalDiscount = discountResult?.totalDiscount;
   }
 
+  // const discountResult = calculateCouponDiscount(couponResult?.validCoupons || [], originalAmount);
+
+  // return {discountResult, couponResult}
+
   // Calculate final amount
-  const calculatePrice = Math.max(0, originalAmount - totalDiscount);
+  // const calculatePrice = Math.max(0, originalAmount - totalDiscount);
 
   // Calculate Total Price
   const TAX_CONSTANT = 10000;
-  let finalAmount = calculatePrice + TAX_CONSTANT + totalPackagePrice;
+  let finalPriceForCheckout = finalPrice + TAX_CONSTANT + totalPackagePrice;
 
   if (useUserWallet) {
-    finalAmount -= user.wallet.amount;
+    finalPriceForCheckout -= user.wallet.amount;
   }
 
   return {
@@ -1811,18 +1743,15 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
     summary: {
       ProgramOriginalAmount: originalAmount,
       totalDiscount,
-      finalAmount,
+      finalAmount: finalPriceForCheckout,
       tax: TAX_CONSTANT,
-      ProgramTotalPrice: calculatePrice,
+      ProgramTotalPrice: finalPrice,
       totalPackagePrice,
     },
     packages: selectedPackages || [],
     coupons: {
-      valid: validCoupons.map((vc) => ({
-        ...vc,
-        code: couponCodes[validCoupons.indexOf(vc)],
-      })),
-      invalid: invalidCoupons,
+      valid: couponResult?.validCoupons,
+      invalid: couponResult?.invalidCoupons || [],
     },
   };
 };

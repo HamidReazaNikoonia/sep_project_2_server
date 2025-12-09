@@ -520,6 +520,344 @@ const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems })
 };
 
 /**
+ * Check and Validate Coupon Codes
+ * @param {Array} couponCodes - Array of coupon ObjectIDs
+ * @param {String} order_variant - Order variant type (default: 'ORDER')
+ * @param {Object} orderItems - Object containing products and courses arrays
+ * @returns {Object} - Valid coupons, invalid coupons with reasons, and total discount
+ */
+const checkCouponForCourseSession = async ({ couponCodes, order_variant = 'COURSE_SESSION', orderItems }) => {
+  const validCoupons = [];
+  const invalidCoupons = [];
+  let totalDiscount = 0;
+
+  // Return early if no coupons provided
+  if (!couponCodes || couponCodes.length === 0) {
+    return {
+      validCoupons,
+      invalidCoupons,
+      totalDiscount,
+    };
+  }
+
+  // Detect if couponCodes contains IDs or codes by checking the first item (assuming all elements are of same type)
+  let coupons;
+
+  const firstValue = couponCodes[0];
+  const isObjectId = /^[a-f\d]{24}$/i.test(firstValue);
+
+  if (isObjectId) {
+    // If IDs (ObjectIds)
+    coupons = await CouponCode.find({ _id: { $in: couponCodes } });
+  } else {
+    // If codes (strings)
+    coupons = await CouponCode.find({ code: { $in: couponCodes } });
+  }
+
+  const foundIds = coupons.map((c) => c._id.toString());
+  const notFoundIds = couponCodes.filter((id) => !foundIds.includes(id.toString()));
+
+  // codes
+  const foundCodes = coupons.map((c) => c.code.toUpperCase());
+  const notFoundCodes = couponCodes.filter((code) => !foundCodes.includes(code.toUpperCase()));
+
+  // Check if all coupon IDs were found
+  if (isObjectId) {
+    // Add not found coupons to invalid list
+    notFoundIds.forEach((id) => {
+      invalidCoupons.push({
+        couponId: id,
+        reason: 'Coupon code not found in database',
+      });
+    });
+  } else {
+    notFoundCodes.forEach((code) => {
+      invalidCoupons.push({
+        couponId: code,
+        code,
+        reason: 'Coupon code not found in database',
+      });
+    });
+  }
+
+  // Check for REFERRAL type restriction
+  const referralCoupons = coupons.filter((c) => c.type === 'REFERRAL');
+  if (referralCoupons.length > 1) {
+    referralCoupons.forEach((coupon) => {
+      invalidCoupons.push({
+        couponId: coupon._id,
+        code: coupon.code,
+        reason: 'Only one REFERRAL coupon is allowed per order',
+      });
+    });
+    // Remove all referral coupons from processing
+    const referralIds = referralCoupons.map((c) => c._id.toString());
+    coupons.splice(0, coupons.length, ...coupons.filter((c) => !referralIds.includes(c._id.toString())));
+  }
+
+  // Check for is_combined === false restriction
+  const nonCombinableCoupons = coupons.filter((c) => c.is_combined === false);
+  if (nonCombinableCoupons.length > 0) {
+    if (coupons.length > 1) {
+      // If there are multiple coupons and one is not combinable, reject all
+      coupons.forEach((coupon) => {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason:
+            coupon.is_combined === false
+              ? 'This coupon cannot be combined with other coupons'
+              : 'Cannot be used with non-combinable coupon',
+        });
+      });
+      return {
+        validCoupons,
+        invalidCoupons,
+        totalDiscount: 0,
+      };
+    }
+  }
+
+  // Validate each coupon
+  for (const coupon of coupons) {
+    // Skip if already in invalid list
+    if (invalidCoupons.some((inv) => inv.couponId.toString() === coupon._id.toString())) {
+      continue;
+    }
+
+    // Check if coupon is valid using schema method
+    if (!coupon.isValid()) {
+      let reason = 'Coupon is not valid';
+      const now = new Date();
+
+      if (!coupon.is_active) {
+        reason = 'Coupon is not active';
+      } else if (coupon.current_uses >= coupon.max_uses) {
+        reason = 'Coupon has reached maximum uses';
+      } else if (now < coupon.valid_from) {
+        reason = 'Coupon is not yet valid';
+      } else if (now > coupon.valid_until) {
+        reason = 'Coupon has expired';
+      }
+
+      invalidCoupons.push({
+        couponId: coupon._id,
+        code: coupon.code,
+        reason,
+      });
+      continue;
+    }
+
+    // Check coupon_variant restriction
+    if (coupon.coupon_variant === 'ORDER') {
+      invalidCoupons.push({
+        couponId: coupon._id,
+        code: coupon.code,
+        reason: 'ORDER coupons cannot be applied to course sessions',
+      });
+      continue;
+    }
+
+    // Check if coupon_variant matches order type
+    if (coupon.coupon_variant !== 'ALL' && coupon.coupon_variant !== order_variant) {
+      invalidCoupons.push({
+        couponId: coupon._id,
+        code: coupon.code,
+        reason: `Coupon is only valid for ${coupon.coupon_variant} type`,
+      });
+      continue;
+    }
+
+    // ---
+    // Check applicable_courses restriction if specified
+    // if (coupon.applicable_courses && coupon.applicable_courses.length > 0) {
+    //   const applicableCourseIds = coupon.applicable_courses.map((ac) => ac.target_id.toString());
+    //   const orderCourseIds = orderItems.courses ? orderItems.courses.map((c) => c.toString()) : [];
+
+    //   const hasApplicableCourse = orderCourseIds.some((cId) => applicableCourseIds.includes(cId));
+
+    //   if (!hasApplicableCourse) {
+    //     invalidCoupons.push({
+    //       couponId: coupon._id,
+    //       code: coupon.code,
+    //       reason: 'Coupon is not applicable to any courses in this order',
+    //     });
+    //     continue;
+    //   }
+    // }
+
+    // New Check applicable_courses restriction if specified
+    // Check applicable_courses restriction if specified
+    if (coupon.applicable_courses && coupon.applicable_courses.length > 0) {
+      // Filter only COURSE_SESSION type applicable courses
+      const applicableCourseIds = coupon.applicable_courses
+        .filter((ac) => ac.target_type === 'COURSE_SESSION')
+        .map((ac) => ac.target_id.toString());
+
+      // For course_session, orderItems is a single ClassProgram ObjectId
+      const orderItemId = orderItems._id.toString();
+
+      const hasApplicableCourse = applicableCourseIds.includes(orderItemId);
+
+      if (!hasApplicableCourse) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon is not applicable to this course session',
+        });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+    }
+    /// ---
+
+    // Check except_courses restriction if specified
+    // if (coupon.except_courses && coupon.except_courses.length > 0) {
+    //   const exceptCourseIds = coupon.except_courses.map((ec) => ec.target_id.toString());
+    //   const orderCourseIds = orderItems.courses ? orderItems.courses.map((c) => c.toString()) : [];
+
+    //   const hasExceptCourse = orderCourseIds.some((cId) => exceptCourseIds.includes(cId));
+
+    //   if (hasExceptCourse) {
+    //     invalidCoupons.push({
+    //       couponId: coupon._id,
+    //       code: coupon.code,
+    //       reason: 'Coupon cannot be applied to one or more courses in this order',
+    //     });
+    //     continue;
+    //   }
+    // }
+
+    // New Check except_courses restriction if specified
+    if (coupon.except_courses && coupon.except_courses.length > 0) {
+      const exceptCourseIds = coupon.except_courses.map((ec) => ec.target_id.toString());
+
+      // For course_session, orderItems is a single ClassProgram ObjectId
+      const orderItemId = orderItems._id.toString();
+
+      const hasExceptCourse = exceptCourseIds.includes(orderItemId);
+
+      if (hasExceptCourse) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon cannot be applied to this course session',
+        });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+    }
+    // ---
+
+    // Check except_coach restriction if specified
+    // if (coupon.except_coach && coupon.except_coach.length > 0) {
+    //   const exceptCoachIds = coupon.except_coach.map((coach) => coach.toString());
+    //   const orderCoachIds = orderItems.coaches ? orderItems.coaches.map((c) => c.toString()) : [];
+
+    //   const hasExceptCoach = orderCoachIds.some((coachId) => exceptCoachIds.includes(coachId));
+
+    //   if (hasExceptCoach) {
+    //     invalidCoupons.push({
+    //       couponId: coupon._id,
+    //       code: coupon.code,
+    //       reason: 'Coupon cannot be applied to one or more coaches in this order',
+    //     });
+    //     continue;
+    //   }
+    // }
+
+    // New
+    // Check except_coach restriction if specified
+    if (coupon.except_coach && coupon.except_coach.length > 0) {
+      const exceptCoachIds = coupon.except_coach.map((coach) => coach.toString());
+
+      // Get coach from orderItems (could be populated or just an ID)
+      const orderCoachId = (orderItems?.coach?._id || orderItems?.coach)?.toString();
+
+      if (orderCoachId && exceptCoachIds.includes(orderCoachId)) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon cannot be applied to this coach',
+        });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+    }
+    // --
+
+    // Check applicable_coach restriction if specified
+    // if (coupon.applicable_coach && coupon.applicable_coach.length > 0) {
+    //   const applicableCoachIds = coupon.applicable_coach.map((coach) => coach.toString());
+    //   const orderCoachIds = orderItems.coaches ? orderItems.coaches.map((c) => c.toString()) : [];
+
+    //   // If there are no coaches in the order, coupon cannot be applied
+    //   if (orderCoachIds.length === 0) {
+    //     invalidCoupons.push({
+    //       couponId: coupon._id,
+    //       code: coupon.code,
+    //       reason: 'Coupon requires specific coaches but no coaches found in order',
+    //     });
+    //     continue;
+    //   }
+
+    //   const hasApplicableCoach = orderCoachIds.some((coachId) => applicableCoachIds.includes(coachId));
+
+    //   if (!hasApplicableCoach) {
+    //     invalidCoupons.push({
+    //       couponId: coupon._id,
+    //       code: coupon.code,
+    //       reason: 'Coupon is not applicable to any coaches in this order',
+    //     });
+    //     continue;
+    //   }
+    // }
+
+    // NEW
+
+    // Check applicable_coach restriction if specified
+    if (coupon.applicable_coach && coupon.applicable_coach.length > 0) {
+      const applicableCoachIds = coupon.applicable_coach.map((coach) => coach.toString());
+
+      // Get coach from orderItems (could be populated or just an ID)
+      const orderCoachId = (orderItems?.coach?._id || orderItems?.coach)?.toString();
+
+      // If there is no coach in the order, coupon cannot be applied
+      if (!orderCoachId) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon requires specific coaches but no coach found in order',
+        });
+        continue;
+      }
+
+      const hasApplicableCoach = applicableCoachIds.includes(orderCoachId);
+
+      if (!hasApplicableCoach) {
+        invalidCoupons.push({
+          couponId: coupon._id,
+          code: coupon.code,
+          reason: 'Coupon is not applicable to this coach',
+        });
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+    }
+    //----
+
+    // If all validations pass, add to valid coupons
+    validCoupons.push(coupon);
+  }
+
+  return {
+    validCoupons,
+    invalidCoupons,
+    totalDiscount, // Will be calculated when applying to actual price
+  };
+};
+
+/**
  * Calculate total discount from valid coupons
  * @param {Array} validCoupons - Array of valid coupon objects
  * @param {Number} originalPrice - Original price before discount
@@ -582,5 +920,6 @@ module.exports = {
   validateAndApplyCoupon,
   generateReferralCode,
   checkCoupon,
+  checkCouponForCourseSession,
   calculateCouponDiscount,
 };

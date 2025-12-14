@@ -91,6 +91,10 @@ const courseSessionOrderSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    usedUserWalletAmount: {
+      type: Number,
+      required: false,
+    },
     packages: [
       {
         type: mongoose.Schema.Types.ObjectId,

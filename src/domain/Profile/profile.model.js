@@ -29,10 +29,35 @@ const profileSchema = new mongoose.Schema(
     ],
     course_session_program_enrollments: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'ClassProgram',
-        autopopulate: true,
-      },
+        program_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'ClassProgram',
+          autopopulate: true,
+        },
+        startedAt: {
+          type: Date,
+          required: false,
+        },
+        score: {
+          type: Number,
+          default: 0,
+        },
+        is_active: {
+          type: Boolean,
+          default: true,
+        },
+        is_valid: {
+          type: Boolean,
+          default: false,
+        },
+        is_completed: {
+          type: Boolean,
+          default: false,
+        },
+        endedAt: {
+          type: Date,
+        },
+      }
     ],
   },
   { timestamps: true }

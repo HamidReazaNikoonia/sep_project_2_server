@@ -24,30 +24,34 @@ const getProfile = async (userId) => {
   const courses = [];
 
   // Get ALl User Courses from User Orders
-  if (Array.isArray(UserOrders)) {
-    if (UserOrders.length !== 0) {
-      for (const orderItem of UserOrders) {
-        for (const orderProducts of orderItem.products) {
-          if (orderProducts.course) {
-            courses.push(orderProducts.course);
-          }
-        }
-      }
-    }
-  }
+  // if (Array.isArray(UserOrders)) {
+  //   if (UserOrders.length !== 0) {
+  //     for (const orderItem of UserOrders) {
+  //       for (const orderProducts of orderItem.products) {
+  //         if (orderProducts.course) {
+  //           courses.push(orderProducts.course);
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 
   // Get enrolled user Course Session Profile
-  const userCourseSessionPrograms = await courseSessionOrderModel.find({ userId }).populate({
-    path: 'classProgramId',
-    populate: {
-      path: 'course',
-      select: 'title sub_title _id course_status',
-    },
-    select: 'program_type sessions status _id',
-  });
+  // const userCourseSessionPrograms = await courseSessionOrderModel.find({ userId }).populate({
+  //   path: 'classProgramId',
+  //   populate: {
+  //     path: 'course',
+  //     select: 'title sub_title _id course_status',
+  //   },
+  //   select: 'program_type sessions status _id',
+  // });
+
+  // Get User enrollled Course session (program)
+  const user = await UserModel.findById(userId).populate('course_session_program_enrollments.program');
+  const userCourseSessionPrograms = user.course_session_program_enrollments;
 
   // eslint-disable-next-line no-console
-  console.log({ UserOrders });
+  // console.log({ UserOrders });
 
   //  // Get Users courses
   //  const userCourses = await Course.find({ user: user.id });

@@ -9,6 +9,8 @@ const User = require('../../models/user.model');
 const ApiError = require('../../utils/ApiError');
 const { Send: sendSMS } = require('../../services/sms/smsProvider');
 
+const config = require('../../config/config');
+
 const orderStatusUpdateNotificationTypes = {
   waiting: 'در انتظار تایید',
   confirmed: 'تایید شد',
@@ -29,7 +31,18 @@ const createNotification = async (notificationBody) => {
 
   // Send SMS to user
   if (notification.channels.includes('sms')) {
-    await sendSMS(notification.customer.mobile, notification.message);
+    const link =
+      notification?.content?.action_url ||
+      (notification?.actions && notification.actions.length > 0 && notification.actions[0].url) ||
+      '';
+
+    const smsMessageTemplate = `${notification.title || ''}
+      \n- ${notification.message || ''}
+    ${link ? `\n- لینک: ${link}` : ''}`;
+
+    console.log('smsMessageTemplate', smsMessageTemplate);
+
+    await sendSMS(notification.customer.mobile, smsMessageTemplate);
   }
 
   // Trigger delivery process
@@ -524,6 +537,60 @@ const sendPaymentNotification = async (userId, orderId, isSuccess = true, paymen
 };
 
 /**
+ * Send program payment notification
+ * @param {ObjectId} userId
+ * @param {ObjectId} orderId
+ * @param {boolean} isSuccess
+ * @param {Object} paymentDetails
+ */
+const sendProgramPaymentNotification = async (userId, orderId, isSuccess = true, paymentDetails = {}) => {
+  const notificationData = {
+    customer: userId,
+    notification_type: isSuccess ? 'payment_success' : 'payment_failed',
+    priority: 'high',
+    title: isSuccess ? 'پرداخت موفق' : 'پرداخت ناموفق',
+    message: isSuccess
+      ? `پرداخت شما با موفقیت انجام شد. مبلغ: ${paymentDetails.amount || 'نامشخص'} تومان`
+      : 'پرداخت شما ناموفق بود. لطفاً مجدداً تلاش کنید.',
+    channels: ['in_app', 'sms', 'email'],
+    state: {
+      order_id: orderId,
+      transaction_id: paymentDetails.transactionId,
+      reference_id: paymentDetails.reference,
+    },
+    // content: {
+    //   action_url: isSuccess ? `/orders/${orderId}` : `/payment/retry/${orderId}`,
+    // },
+    // actions: isSuccess
+    //   ? [
+    //       {
+    //         id: 'view_order',
+    //         label: 'مشاهده سفارش',
+    //         url: `/orders/${orderId}`,
+    //         style: 'primary',
+    //       },
+    //     ]
+    //   : [
+    //       {
+    //         id: 'retry_payment',
+    //         label: 'تلاش مجدد',
+    //         url: `/payment/retry/${orderId}`,
+    //         style: 'primary',
+    //       },
+    //     ],
+    metadata: {
+      source: 'payment_service',
+      ...paymentDetails,
+    },
+    sender: {
+      type: 'system',
+    },
+  };
+
+  return createNotification(notificationData);
+};
+
+/**
  * Send course enrollment notification
  * @param {ObjectId} userId
  * @param {ObjectId} programId
@@ -533,22 +600,24 @@ const sendCourseEnrollmentNotification = async (userId, programId, courseDetails
   const notificationData = {
     customer: userId,
     notification_type: 'course_enrollment',
-    priority: 'medium',
-    title: 'ثبت نام در دوره',
-    message: `شما با موفقیت در دوره "${courseDetails.title || 'نامشخص'}" ثبت نام شدید.`,
-    channels: ['in_app', 'email'],
+    priority: 'high',
+    title: 'ثبت نام در کلاس',
+    message: `شما با موفقیت در کلاس "${courseDetails.title || 'نامشخص'}" - مدرس: ${
+      courseDetails.coachFullName || 'مدرس نامشخص'
+    } ثبت نام شدید. لطفاً به صفحه کلاس مراجعه کنید.`,
+    channels: ['in_app', 'sms', 'email'],
     state: {
-      course_id: courseDetails.courseId,
-      session_id: programId,
+      program_id: courseDetails.programId,
+      order_id: courseDetails.orderId,
     },
     content: {
-      action_url: `/my-courses/${programId}`,
+      action_url: `${config.CLIENT_URL}/dashboard/course-session?program_id=${courseDetails.orderId}`,
     },
     actions: [
       {
         id: 'view_course',
         label: 'مشاهده دوره',
-        url: `/my-courses/${programId}`,
+        url: `${config.CLIENT_URL}/dashboard/course-session?program_id=${programId}`,
         style: 'primary',
       },
     ],
@@ -777,6 +846,7 @@ module.exports = {
   sendOrderCreationNotification,
   sendOrderStatusUpdateNotification,
   sendPaymentNotification,
+  sendProgramPaymentNotification,
   sendCourseEnrollmentNotification,
   sendSessionReminderNotification,
   sendSessionCompletionNotification,

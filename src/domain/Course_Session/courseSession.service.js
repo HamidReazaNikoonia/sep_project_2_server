@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
 const httpStatus = require('http-status');
 const momentJalaali = require('moment-jalaali');
 const { CourseSession, CourseSessionCategory, CourseSessionSubCategory } = require('./courseSession.model');
-const APIFeatures = require('../../utils/APIFeatures');
+// const APIFeatures = require('../../utils/APIFeatures');
 const ZarinpalCheckout = require('../../services/payment');
 const config = require('../../config/config');
 const queryParamsStringToArray = require('../../utils/queryParamsStringToArray');
@@ -23,6 +23,8 @@ const CouponCode = require('../CouponCodes/couponCodes.model');
 const Transaction = require('../Transaction/transaction.model');
 // const ClassNo = require('../ClassNo/classNo.model');
 const { classProgramModel, sessionPackageModel } = require('./classProgram.model');
+
+const { sendCourseEnrollmentNotification, sendProgramPaymentNotification } = require('../Notification/notification.service');
 
 const OrderId = require('../../utils/orderId');
 
@@ -1491,7 +1493,7 @@ const getAllOrdersOfProgramForAdmin = async (filter, options) => {
 
 // checkout order
 const createCourseSessionOrder = async ({ requestBody, user }) => {
-  const { courseSessionId, classProgramId, couponCodes, packages } = requestBody;
+  const { courseSessionId, classProgramId, couponCodes, packages, useUserWallet = false } = requestBody;
 
   // var
   // let validPackages = null;
@@ -1548,12 +1550,22 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
     packages: validPackages,
     coupons,
     // eslint-disable-next-line no-use-before-define
-  } = await calculateOrderSummary({ user, classProgramId, couponCodes: couponCodes || [], packages: packages || [] });
+  } = await calculateOrderSummary({
+    user,
+    classProgramId,
+    couponCodes: couponCodes || [],
+    packages: packages || [],
+    useUserWallet: useUserWallet || false,
+  });
 
   // validate
 
   if (!program || !summary) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid program or summary from $calculateOrderSummary service');
+  }
+
+  if (summary.usedUserWalletAmount > 0) {
+    orderData.usedUserWalletAmount = summary.usedUserWalletAmount;
   }
 
   orderData.tax = summary.tax;
@@ -1580,8 +1592,8 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
   // check if valid coupon exist
   if (coupons?.valid?.length > 0) {
     orderData.appliedCoupons = coupons.valid.map((coupon) => ({
-      couponId: coupon.couponId,
-      discountAmount: coupon.discountAmount,
+      couponId: coupon.id,
+      discountAmount: coupon.discount_value,
     }));
   }
 
@@ -1598,6 +1610,85 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
 
   if (!newOrder) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Order could not be created (AT STORE IN DB)');
+  }
+
+  // TODO:: Implement this logic
+  // if the `final_order_price` is 0 or less than 1000, we need to throw an error
+  // 1- Add user as member if not already added
+  // 1- use the coupon if exist
+  // 2- deduct the user wallet amount if exist
+  // 3- send notification to user
+
+  if (newOrder.final_order_price <= 0 || newOrder.final_order_price < 100000) {
+    newOrder.paymentStatus = 'paid';
+    await newOrder.save();
+
+    // Add user as member if not already added
+
+    // Add member to classProgram.members
+    const classProgram = await classProgramModel.findById(newOrder.classProgramId);
+    if (!classProgram) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Class program not found');
+    }
+
+    classProgram.members.push({
+      user: newOrder.userId,
+      enrolledAt: new Date(),
+    });
+    await classProgram.save();
+
+    // 3- update user model and push course session to `course_session_enrollments`
+
+    const userModel = await User.findById(newOrder.userId);
+    if (!userModel) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    }
+    userModel.course_session_program_enrollments.push({
+      program: newOrder.classProgramId,
+      startedAt: new Date(),
+      is_active: true,
+      is_valid: true,
+      // is_completed: false,
+      // endedAt: null,
+    });
+    await userModel.save();
+
+    // 4- apply coupon (decrement coupon usage)
+    if (newOrder?.appliedCoupons && newOrder?.appliedCoupons?.length > 0) {
+      const validCouponsIds = newOrder.appliedCoupons.map((coupon) => coupon.couponId.toString());
+      // console.log('validCouponsIds', validCouponsIds);
+      // console.log('order.appliedCoupons', order.appliedCoupons);
+
+      await applyCoupons(validCouponsIds);
+      // eslint-disable-next-line no-console
+      // console.log('appliedCoupons', appliedCoupons);
+      // return {appliedCoupons}
+    }
+
+    // use user wallet amount
+    if (newOrder.usedUserWalletAmount > 0) {
+      const userDoc = await User.findById(newOrder.userId);
+      if (!userDoc) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+      }
+      userDoc.wallet_amount -= newOrder.usedUserWalletAmount;
+      await userDoc.save();
+    }
+
+    // console.log('kir -data', { title: classProgram?.course?.title, coach: classProgram?.coach?.first_name });
+    const coachName = classProgram?.coach?.first_name
+      ? `${classProgram?.coach?.first_name} ${classProgram?.coach?.last_name}`
+      : 'مدرس نامشخص';
+    await sendCourseEnrollmentNotification(newOrder.userId, newOrder.classProgramId, {
+      title: classProgram?.course?.title,
+      coachFullName: coachName,
+      orderId: newOrder._id,
+    });
+
+    return { order: newOrder, transaction: null, payment: null };
+
+    // return {userProfileModel}
+    // throw new ApiError(httpStatus.BAD_REQUEST, 'Order price is not valid');
   }
 
   // Payment Checkout ZARINPAL Process
@@ -1718,8 +1809,23 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
   const TAX_CONSTANT = 10000;
   let finalPriceForCheckout = finalPrice + TAX_CONSTANT + totalPackagePrice;
 
-  if (useUserWallet) {
-    finalPriceForCheckout -= user.wallet.amount;
+  let userWalletUsedAmount = 0;
+  if (useUserWallet && user?.wallet_amount && user?.wallet_amount > 0) {
+    const walletAmount = user?.wallet_amount || 0;
+
+    if (finalPriceForCheckout > walletAmount) {
+      // Case 1: finalPriceForCheckout is greater than wallet, subtract wallet from final
+      userWalletUsedAmount = walletAmount;
+      finalPriceForCheckout -= walletAmount;
+    } else if (finalPriceForCheckout <= walletAmount) {
+      // Case 3: finalPriceForCheckout is less than or equal to wallet, set finalPriceForCheckout to minimum positive (0)
+      userWalletUsedAmount = finalPriceForCheckout;
+      finalPriceForCheckout = 0;
+    }
+    // Always ensure finalPriceForCheckout is not negative
+    if (finalPriceForCheckout < 0) {
+      finalPriceForCheckout = 0;
+    }
   }
 
   return {
@@ -1747,10 +1853,19 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
       tax: TAX_CONSTANT,
       ProgramTotalPrice: finalPrice,
       totalPackagePrice,
+      usedUserWalletAmount: userWalletUsedAmount || 0,
     },
     packages: selectedPackages || [],
     coupons: {
-      valid: couponResult?.validCoupons,
+      valid:
+        couponResult?.validCoupons?.length > 0
+          ? couponResult.validCoupons.map((c) => ({
+              id: c._id,
+              code: c.code,
+              discount_type: c.discount_type,
+              discount_value: c.discount_value,
+            }))
+          : [],
       invalid: couponResult?.invalidCoupons || [],
     },
   };
@@ -1863,12 +1978,19 @@ const validateCheckoutCourseSessionOrder = async ({ orderId, user, Authority: au
 
     // 3- update user model and push course session to `course_session_enrollments`
 
-    const userProfileModel = await Profile.findOne({ user: order.userId });
-    if (!userProfileModel) {
+    const userModel = await User.findById(order.userId);
+    if (!userModel) {
       throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
     }
-    userProfileModel.course_session_program_enrollments.push(order.classProgramId);
-    await userProfileModel.save();
+    userModel.course_session_program_enrollments.push({
+      program: order.classProgramId,
+      startedAt: new Date(),
+      is_active: true,
+      is_valid: true,
+      // is_completed: false,
+      // endedAt: null,
+    });
+    await userModel.save();
 
     // 4- apply coupon (decrement coupon usage)
     if (order?.appliedCoupons && order?.appliedCoupons?.length > 0) {
@@ -1880,6 +2002,39 @@ const validateCheckoutCourseSessionOrder = async ({ orderId, user, Authority: au
       // eslint-disable-next-line no-console
       console.log('appliedCoupons', appliedCoupons);
     }
+
+    // use user wallet amount
+    // console.log('order.usedUserWalletAmount', order.usedUserWalletAmount);
+    if (order.usedUserWalletAmount > 0) {
+      const userDoc = await User.findById(order.userId);
+      if (!userDoc) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+      }
+      userDoc.wallet_amount -= order.usedUserWalletAmount;
+      await userDoc.save();
+    }
+
+    // send Notification
+    const coachName = classProgram?.coach?.first_name
+      ? `${classProgram?.coach?.first_name} ${classProgram?.coach?.last_name}`
+      : 'مدرس نامشخص';
+    await sendCourseEnrollmentNotification(order.userId, order.classProgramId, {
+      title: classProgram?.course?.title,
+      coachFullName: coachName,
+      orderId: order._id,
+    });
+
+    // payment success notification
+    console.log('kir', {
+      amount: order.final_order_price,
+      transactionId: transaction._id,
+      reference: transaction.payment_reference_id,
+    });
+    await sendProgramPaymentNotification(order.userId, order._id, true, {
+      amount: order.final_order_price,
+      transactionId: transaction._id,
+      reference: transaction.payment_reference_id,
+    });
   }
 
   return { order, transaction, payment };

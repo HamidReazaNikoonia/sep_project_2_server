@@ -21,7 +21,7 @@ const getProfile = async (userId) => {
   // get User Orders
   const UserOrders = await Order.find({ customer: userId });
 
-  const courses = [];
+  let courses = [];
 
   // Get ALl User Courses from User Orders
   // if (Array.isArray(UserOrders)) {
@@ -47,8 +47,31 @@ const getProfile = async (userId) => {
   // });
 
   // Get User enrollled Course session (program)
-  const user = await UserModel.findById(userId).populate('course_session_program_enrollments.program');
+  const user = await UserModel.findById(userId)
+    .populate('course_session_program_enrollments.program')
+    .populate({
+      path: 'enrolled_courses',
+      select: 'title sub_title coach_id tumbnail_image',
+      populate: [
+        {
+          path: 'coach_id',
+          select: 'first_name last_name avatar',
+          populate: {
+            path: 'avatar',
+            // Add any selection for avatar fields here if needed
+          },
+        },
+        {
+          path: 'tumbnail_image',
+          // Add any selection for tumbnail_image fields here if needed
+        },
+      ],
+    });
   const userCourseSessionPrograms = user.course_session_program_enrollments;
+
+  if (user?.enrolled_courses && user?.enrolled_courses?.length > 0) {
+    courses = user?.enrolled_courses;
+  }
 
   // eslint-disable-next-line no-console
   // console.log({ UserOrders });

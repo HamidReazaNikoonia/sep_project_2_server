@@ -1477,14 +1477,14 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
       // if (result.modifiedCount !== productsWithProductProperty.length) {
       //   throw new ApiError(httpStatus.BAD_REQUEST, 'Failed to decrement product count');
       // }
+    }
 
-      // 4- Enroll user to courses
-      if (order.products.some((item) => item.course)) {
-        const courseIds = order.products
-          .filter((item) => item.course)
-          .map((item) => new mongoose.Types.ObjectId(item.course?._id || item.course));
-        await UserModel.findByIdAndUpdate(order.customer, { $push: { enrolled_courses: { $each: courseIds } } });
-      }
+    // 4- Enroll user to courses
+    if (order.products.some((item) => item.course)) {
+      const courseIds = order.products
+        .filter((item) => item.course)
+        .map((item) => new mongoose.Types.ObjectId(item.course?._id || item.course));
+      await UserModel.findByIdAndUpdate(order.customer, { $push: { enrolled_courses: { $each: courseIds } } });
     }
   }
 

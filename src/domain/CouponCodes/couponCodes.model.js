@@ -20,7 +20,8 @@ const couponCodeSchema = new Schema(
     coupon_variant: {
       type: String,
       enum: ['COURSE_SESSION', 'ORDER', 'ALL'],
-      required: true,
+      default: 'COURSE_SESSION',
+      required: false,
     },
     discount_type: {
       type: String,

@@ -1,3 +1,4 @@
+/* eslint-disable no-continue */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable camelcase */
 const httpStatus = require('http-status');

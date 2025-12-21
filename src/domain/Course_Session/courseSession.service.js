@@ -278,7 +278,7 @@ const getAllCoursesSessionForAdmin = async ({ filter, options }) => {
     }
   }
 
-  const courses = await CourseSession.paginate(otherFilters, options);
+  const courses = await CourseSession.paginate(otherFilters, { ...options, populateCategory: 'Course_Session_Category' });
 
   // If no courses found, return early
   if (!courses.results || courses.results.length === 0) {
@@ -558,7 +558,19 @@ const getAllCourses = async ({ query }) => {
 const getCourseBySlugOrId = async (identifier) => {
   // const query = identifier._id ? { _id: identifier._id } : { slug: identifier.slug };
   // console.log(identifier);
-  return await CourseSession.findOne(identifier);
+  function deepParentPopulate(levelsLeft = 5) {
+    if (levelsLeft === 0) return [];
+    return {
+      path: 'parent',
+      model: 'Course_Session_Category',
+      populate: deepParentPopulate(levelsLeft - 1),
+    };
+  }
+  return await CourseSession.findOne(identifier).populate({
+    path: 'course_session_category',
+    populate: deepParentPopulate(5), // populate up to 5 levels of parent nesting
+  });
+
 };
 
 const createCourse = async (courseData) => {

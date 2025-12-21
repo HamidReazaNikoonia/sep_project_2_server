@@ -181,7 +181,21 @@ const getAllCourses = async ({ query }) => {
 const getCourseBySlugOrId = async (identifier) => {
   // const query = identifier._id ? { _id: identifier._id } : { slug: identifier.slug };
   // console.log(identifier);
-  return await Course.findOne(identifier);
+  // Deeply populate the 'parent' property recursively for all levels
+  function deepParentPopulate(levelsLeft = 5) {
+    if (levelsLeft === 0) return [];
+    return {
+      path: 'parent',
+      model: 'Course_Category',
+      populate: deepParentPopulate(levelsLeft - 1),
+    };
+  }
+
+  return await Course.findOne(identifier)
+    .populate({
+      path: 'course_category',
+      populate: deepParentPopulate(5), // populate up to 5 levels of parent nesting
+    });
 };
 
 const createCourse = async (courseData) => {

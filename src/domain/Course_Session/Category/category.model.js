@@ -12,7 +12,7 @@ const categorySchema = mongoose.Schema(
     parent: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Course_Session_Category',
-      autopopulate: true,
+      // autopopulate: true,
       default: null,
     },
     path: {

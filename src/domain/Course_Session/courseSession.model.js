@@ -141,7 +141,7 @@ const courseSessionSchema = new Schema(
       {
         type: Schema.Types.ObjectId,
         ref: 'Course_Session_Category',
-        autopopulate: true,
+        autopopulate: false,
       },
     ],
     // course_session_sub_category: {

@@ -39,6 +39,23 @@ const paginate = (schema) => {
     const countPromise = this.countDocuments(filter).exec();
     let docsPromise = this.find(filter).sort(sort).skip(skip).limit(limit);
 
+    function deepParentPopulate(levelsLeft = 5) {
+      if (levelsLeft === 0) return [];
+      return {
+        path: 'parent',
+        model: 'Course_Session_Category',
+        populate: deepParentPopulate(levelsLeft - 1),
+      };
+    }
+
+    if (options.populateCategory) {
+      // console.log('options.populateCategory------------------', options.populateCategory);
+      docsPromise = docsPromise.populate({
+        path: 'course_session_category',
+        populate: deepParentPopulate(5), // populate up to 5 levels of parent nesting
+      });
+    }
+
     if (options.populate) {
       options.populate.split(',').forEach((populateOption) => {
         docsPromise = docsPromise.populate(

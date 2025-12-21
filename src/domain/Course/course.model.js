@@ -135,7 +135,7 @@ const courseSchema = new Schema(
       {
         type: Schema.Types.ObjectId,
         ref: 'Course_Category',
-        autopopulate: true,
+        autopopulate: false,
       },
     ],
     coach_id: {

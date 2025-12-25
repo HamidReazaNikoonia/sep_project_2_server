@@ -6,10 +6,102 @@ const ApiError = require('../../utils/ApiError');
 
 const Profile = require('./profile.model');
 const UserModel = require('../../models/user.model');
+const { validateIranianNationalId } = require('../../utils/validation');
 
 const { Order } = require('../shop/Order/order.model');
 const { Course } = require('../Course/course.model');
 const courseSessionOrderModel = require('../Course_Session/courseSession.order.model');
+
+// Validation helper functions
+const exists = (value) => value !== undefined && value !== null && value !== '';
+const isValidNationalId = (value) => exists(value) && validateIranianNationalId(value);
+
+// New validation function for national_card_images
+const isValidNationalCardImages = (value) => {
+  console.log({ '--------------------value':value });
+  // Check if value exists and is an array
+  if (!exists(value) || !Array.isArray(value)) {
+    return false;
+  }
+
+  // Check if array has at least one element
+  if (value.length === 0) {
+    return false;
+  }
+
+  // Check if each element has file_name property
+  // return value.every((item) => item && exists(item.file_name));
+
+  return true;
+};
+/**
+ * Validates user profile completion requirements
+ * @param {Object} user - The user object to validate
+ * @returns {Object} - Validation result with isValid boolean and errors array
+ */
+const validateUserProfileCompletion = (user) => {
+  const errors = [];
+
+  // Define validation rules - scalable structure
+  const validationRules = [
+    {
+      property: 'nationalId',
+      validations: [exists, isValidNationalId],
+      errorMessages: ['National ID is required', 'National ID is invalid'],
+    },
+    {
+      property: 'national_card_images',
+      validations: [isValidNationalCardImages],
+      errorMessages: ['National card images are required'],
+    },
+    {
+      property: 'postal_code',
+      validations: [exists],
+      errorMessages: ['Postal code is required'],
+    },
+    {
+      property: 'address',
+      validations: [exists],
+      errorMessages: ['Address is required'],
+    },
+    {
+      property: 'province',
+      validations: [exists],
+      errorMessages: ['Province is required'],
+    },
+    {
+      property: 'city',
+      validations: [exists],
+      errorMessages: ['City is required'],
+    },
+    {
+      property: 'first_name',
+      validations: [exists],
+      errorMessages: ['First name is required'],
+    },
+    {
+      property: 'last_name',
+      validations: [exists],
+      errorMessages: ['Last name is required'],
+    },
+  ];
+
+  // Apply validation rules
+  validationRules.forEach((rule) => {
+    const value = user[rule.property];
+
+    rule.validations.forEach((validation, index) => {
+      if (!validation(value)) {
+        errors.push(rule.errorMessages[index] || `${rule.property} validation failed`);
+      }
+    });
+  });
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
 
 // create Profile Service
 const createProfile = async (userId) => {
@@ -195,9 +287,17 @@ const completeProfile = async (
   }
   // Find the province ID based on the city ID
 
+  // validate user profile
+  const result = validateUserProfileCompletion(currentUser);
+  currentUser.isProfileCompleted = !!result.isValid;
+
   const savedUser = await currentUser.save();
 
-  return savedUser;
+  return {
+    ...(savedUser?.toObject?.() ?? savedUser),
+    isProfileCompleted: currentUser.isProfileCompleted,
+    validationErrors: result.errors,
+  };
 };
 
 const getUserCourse = async ({ userId, courseId }) => {
@@ -234,4 +334,5 @@ module.exports = {
   getUserCourse,
   createProfile,
   completeProfile,
+  validateUserProfileCompletion,
 };

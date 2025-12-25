@@ -7,6 +7,7 @@ const { roles } = require('../config/roles');
 const getMobiles = require('../utils/mobileValidation');
 
 // Iranian National ID validation function
+// eslint-disable-next-line import/prefer-default-export
 const validateIranianNationalId = (nationalId) => {
   if (!nationalId || nationalId.length !== 10) {
     return false;
@@ -168,6 +169,10 @@ const userSchema = mongoose.Schema(
       autopopulate: true,
     },
     isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    isProfileCompleted: {
       type: Boolean,
       default: false,
     },

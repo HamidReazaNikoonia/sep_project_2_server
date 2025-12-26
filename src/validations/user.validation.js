@@ -86,6 +86,11 @@ const updateUser = {
       mariage_status: Joi.string().valid('single', 'married', 'widowed', 'divorced'),
       parent_mariage_type: Joi.string().valid('FAMILY', 'NON_FAMILY'),
       wallet_amount: Joi.number().min(0).max(100000000),
+      description: Joi.string(),
+      description_long: Joi.string(),
+      tags: Joi.array().items(Joi.string()),
+      permission: Joi.boolean().optional(),
+      featured: Joi.boolean().optional(),
       wallet: Joi.number().min(0).max(100000000),
     })
     .min(1),

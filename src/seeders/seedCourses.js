@@ -14,9 +14,9 @@ const server_url = 'http://localhost:9000/v1';
 const { Course } = require('../domain/Course/course.model'); // Adjust path as needed
 
 // Provided IDs
-const USER_IDS = ['68526d430cec9186a98c07bb'];
+const USER_IDS = ['694f42eb3b9e6a002f6dcd45', '694ef69f54aaa6004b2bf7db'];
 
-const FILE_IDS = ['68ade90d272517005918c6c0', '68adea69272517005918c6cb', '68adeabf272517005918c6d7'];
+const FILE_IDS = ['694f077f54aaa6004b2bfea1', '68adea69272517005918c6cb', '68adeabf272517005918c6d7'];
 
 const COURSE_CATEGORY_IDS = ['68b16548286466003d9e9d2f', '68b1656a4d2bfb004b05b753', '68b165b64d2bfb004b05b758'];
 

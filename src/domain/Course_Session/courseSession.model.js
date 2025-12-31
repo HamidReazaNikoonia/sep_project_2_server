@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('../../models/plugins');
 const Upload = require('../../services/uploader/uploader.model');
+const { SERVER_API_URL } = require('../../config/config');
 
 const { Schema } = mongoose;
 
@@ -186,7 +187,7 @@ courseSessionSchema.pre('save', async function (next) {
         if (uploadDoc) {
           // Generate a new URL using the file name
           const fileName = uploadDoc.file_name || ''; // Adjust field name to match your Upload model
-          const generatedUrl = `http://localhost:9000/file/${fileName}`;
+          const generatedUrl = `${SERVER_API_URL}/file/${fileName}`;
           media.url_address = generatedUrl; // Assign the generated URL
         }
       }

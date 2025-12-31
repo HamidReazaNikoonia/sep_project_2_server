@@ -7,8 +7,9 @@ const dotenv = require('dotenv');
 
 // Load environment variables
 dotenv.config();
+const { SERVER_API_URL } = require('../config/config');
 
-const server_url = 'http://localhost:9000/v1';
+const server_url = `${SERVER_API_URL}/v1`;
 
 // Import the Course model
 const { Course } = require('../domain/Course/course.model'); // Adjust path as needed

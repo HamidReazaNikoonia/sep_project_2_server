@@ -1,9 +1,11 @@
 // seeders/seedProducts.js
 
-const mongoose = require('mongoose');
+const mongoose = require('mongoose');'
+const { SERVER_API_URL } = require('../config/config');'
 const dotenv = require('dotenv');
 
-const server_url = 'http://localhost:9000/v1';
+
+const server_url = `${SERVER_API_URL}/v1`;
 
 // Load environment variables
 dotenv.config();

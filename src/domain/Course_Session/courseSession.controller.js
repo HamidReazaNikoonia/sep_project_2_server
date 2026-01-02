@@ -138,20 +138,23 @@ const assignClassProgram = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'At least one session is required');
   }
 
-  const classProgram = await courseSesshionService.createClassProgram({
-    course_id,
-    coach_id,
-    class_id,
-    program_type,
-    max_member_accept,
-    sessions,
-    price_real,
-    price_discounted,
-    is_fire_sale,
-    packages,
-    sample_media,
-    subjects,
-  });
+  const classProgram = await courseSesshionService.createClassProgram(
+    {
+      course_id,
+      coach_id,
+      class_id,
+      program_type,
+      max_member_accept,
+      sessions,
+      price_real,
+      price_discounted,
+      is_fire_sale,
+      packages,
+      sample_media,
+      subjects,
+    },
+    { admin_user: req.user }
+  );
 
   res.status(httpStatus.CREATED).send(classProgram);
 });

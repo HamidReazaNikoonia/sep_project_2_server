@@ -68,12 +68,17 @@ const coachSchema = new Schema({
   },
   courseSessionsProgram: [
     {
-      type: Schema.Types.ObjectId,
-      ref: 'ClassProgram',
-      required: false,
-      autopopulate: {
-        select:
-          'course_name members createdAt sessions program_type course_language course_duration is_have_licence licence score status class_id',
+      program: {
+        type: Schema.Types.ObjectId,
+        ref: 'ClassProgram',
+        required: false,
+      },
+      createdAt: Date,
+      addBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false,
+        // autopopulate: true,
       },
     },
   ],

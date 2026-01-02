@@ -96,7 +96,7 @@ router.get('/:slug', courseController.getCourseBySlugOrId);
 router.put('/:course_id', courseController.updateCourse);
 
 // Update and assign a coach to a course
-router.put('/:course_id/assign-coach', courseController.assignClassProgram);
+router.put('/:course_id/assign-coach', auth(), courseController.assignClassProgram);
 router.get('/:course_id/program', courseController.getAllProgramsOFSpecificCourse);
 
 // // Delete a course

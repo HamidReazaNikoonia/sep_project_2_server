@@ -115,8 +115,18 @@ const queryUsers = async (filter, options) => {
   }
 
   // Add condition for enrolled course sessions if filter is true
+  // if (have_enrolled_course_session === 'true') {
+  //   otherFilters['course_session_program_enrollments.0'] = { $exists: true };
+  // }
+
+  // Add condition for enrolled course sessions if filter is true
   if (have_enrolled_course_session === 'true') {
-    otherFilters['course_session_program_enrollments.0'] = { $exists: true };
+    otherFilters['course_session_program_enrollments'] = {
+      $elemMatch: {
+        is_active: true,
+        is_completed: false,
+      },
+    };
   }
 
   // Add condition for users with wallet amount if filter is true

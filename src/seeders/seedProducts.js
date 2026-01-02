@@ -1,14 +1,14 @@
 // seeders/seedProducts.js
 
-const mongoose = require('mongoose');'
-const { SERVER_API_URL } = require('../config/config');'
-const dotenv = require('dotenv');
+const mongoose = require('mongoose');
+// const { SERVER_API_URL } = require('../config/config');
+// const dotenv = require('dotenv');
 
 
-const server_url = `${SERVER_API_URL}/v1`;
+// const server_url = `${SERVER_API_URL}/v1`;
 
 // Load environment variables
-dotenv.config();
+// dotenv.config();
 
 // Import models
 const { Product, ProductReview, Collection } = require('../domain/shop/Product/product.model'); // Adjust path
@@ -18,11 +18,11 @@ require('../services/uploader/uploader.model');
 
 // Provided Image Upload IDs
 const ImageUploadIds = [
-  '68b3504dc4f43c002f5cd8d3',
-  '68b35058c4f43c002f5cd8d5',
-  '68b3528dc4f43c002f5cd919',
-  '68b35328c4f43c002f5cd978',
-  '68b7cee04a1fec002f354d64',
+  '69570a5479acf7002f119192',
+  '69570a7679acf7002f119194',
+  '69570a98271a53003d6fa72a',
+  '69570ab6271a53003d6fa72c',
+  '69570ac5271a53003d6fa72e',
 ];
 
 // Helper functions

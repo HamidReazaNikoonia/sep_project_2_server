@@ -24,11 +24,11 @@ router.post('/validate', validate(couponValidation.validateCoupon), couponContro
 router.post('/apply', auth(), validate(couponValidation.applyCoupon), couponController.applyCoupon);
 
 // Route for generating referral codes (authenticated users only)
-router.post(
-  '/generate-referral',
-  auth(),
-  validate(couponValidation.generateReferral),
-  couponController.generateReferralCode
-);
+// router.post(
+//   '/generate-referral',
+//   auth(),
+//   validate(couponValidation.generateReferral),
+//   couponController.generateReferralCode
+// );
 
 module.exports = router;

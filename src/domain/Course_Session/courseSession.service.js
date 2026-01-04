@@ -24,6 +24,8 @@ const Transaction = require('../Transaction/transaction.model');
 // const ClassNo = require('../ClassNo/classNo.model');
 const { classProgramModel, sessionPackageModel } = require('./classProgram.model');
 
+const couponCodeService = require('../CouponCodes/couponCodes.service');
+
 const { sendCourseEnrollmentNotification, sendProgramPaymentNotification } = require('../Notification/notification.service');
 
 const OrderId = require('../../utils/orderId');
@@ -55,27 +57,82 @@ const ApiError = require('../../utils/ApiError');
 // };
 
 // Assuming validCoupons is an array of objects with couponId
-const applyCoupons = async (validCoupons) => {
-  const results = await Promise.all(
-    validCoupons.map(async (couponId) => {
-      const coupon = await CouponCode.findById(couponId);
-      if (!coupon) {
-        throw new ApiError(httpStatus.NOT_FOUND, `Coupon with id ${couponId} not found`);
-      }
+// const applyCoupons = async (validCoupons) => {
+//   const results = await Promise.all(
+//     validCoupons.map(async (couponId) => {
+//       const coupon = await CouponCode.findById(couponId);
+//       if (!coupon) {
+//         throw new ApiError(httpStatus.NOT_FOUND, `Coupon with id ${couponId} not found`);
+//       }
 
+//       const isUsed = await coupon.use();
+//       if (!isUsed) {
+//         throw new ApiError(httpStatus.BAD_REQUEST, `Coupon ${coupon.code} is no longer valid`);
+//       }
+
+//       return {
+//         couponId: coupon._id,
+//         // discountAmount: validCoupons.find((vc) => vc.couponId.equals(coupon._id)).discountAmount,
+//       };
+//     })
+//   );
+
+//   return results;
+// };
+
+const applyCoupons = async (validCoupons, options) => {
+  // Fetch all coupons in one query instead of N queries
+  const coupons = await CouponCode.find({ _id: { $in: validCoupons } });
+
+  // Check if all coupons were found
+  if (coupons.length !== validCoupons.length) {
+    const foundIds = coupons.map(coupon => coupon._id.toString());
+    const missingIds = validCoupons.filter(id => !foundIds.includes(id));
+    throw new ApiError(httpStatus.NOT_FOUND, `Coupons with ids ${missingIds.join(', ')} not found`);
+  }
+
+  const results = [];
+  const referralCoupons = [];
+  const discountCoupons = [];
+
+  // Use Promise.all to handle all coupon.use() calls concurrently
+  await Promise.all(
+    coupons.map(async (coupon) => {
       const isUsed = await coupon.use();
       if (!isUsed) {
         throw new ApiError(httpStatus.BAD_REQUEST, `Coupon ${coupon.code} is no longer valid`);
       }
 
-      return {
+      const couponResult = {
         couponId: coupon._id,
-        // discountAmount: validCoupons.find((vc) => vc.couponId.equals(coupon._id)).discountAmount,
       };
+
+      results.push(couponResult);
+
+      // Separate referral coupons
+      if (coupon.type === 'REFERRAL') {
+        referralCoupons.push(coupon);
+      } else {
+        discountCoupons.push(coupon);
+      }
     })
   );
 
-  return results;
+  if (referralCoupons.length > 0 && referralCoupons[0]) {
+    await couponCodeService.useReferralCode({
+      referralCode: referralCoupons[0],
+      currentUser: options.currentUser,
+      orderId: options.orderId,
+      order_total_amount: options.order_total_amount,
+      order_variant: options.order_variant,
+    });
+  }
+
+  return {
+    appliedCoupons: results,
+    referralCoupons,
+    discountCoupons,
+  };
 };
 
 const checkCoachAvailability = async (coachId, date, startTime, endTime) => {
@@ -570,7 +627,6 @@ const getCourseBySlugOrId = async (identifier) => {
     path: 'course_session_category',
     populate: deepParentPopulate(5), // populate up to 5 levels of parent nesting
   });
-
 };
 
 const createCourse = async (courseData) => {
@@ -622,20 +678,23 @@ const updateCourse = async (courseId, updateData) => {
   return course;
 };
 
-const createClassProgram = async ({
-  course_id,
-  coach_id,
-  class_id,
-  program_type,
-  max_member_accept = 10,
-  sessions,
-  price_real,
-  price_discounted,
-  is_fire_sale,
-  packages,
-  sample_media,
-  subjects,
-}) => {
+const createClassProgram = async (
+  {
+    course_id,
+    coach_id,
+    class_id,
+    program_type,
+    max_member_accept = 10,
+    sessions,
+    price_real,
+    price_discounted,
+    is_fire_sale,
+    packages,
+    sample_media,
+    subjects,
+  },
+  { admin_user }
+) => {
   // 1. Validate Course exists
   const course = await CourseSession.findById(course_id);
   if (!course) {
@@ -707,6 +766,17 @@ const createClassProgram = async ({
     await CourseSession.findByIdAndUpdate(course_id, { $addToSet: { coaches: coach_id } });
   }
 
+  // 7. update user (coach) to add this program
+  coach.courseSessionsProgram = coach.courseSessionsProgram || [];
+  coach.courseSessionsProgram.push({
+    program: classProgram._id,
+    createdAt: new Date(),
+    addBy: admin_user?.id || admin_user?._id,
+  });
+  // console.log('--------------Admin user -------------', admin_user?.id || admin_user?._id);
+  await coach.save();
+
+  // 8. implement corn jobs
   return classProgram;
 };
 
@@ -1606,6 +1676,7 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
     orderData.appliedCoupons = coupons.valid.map((coupon) => ({
       couponId: coupon.id,
       discountAmount: coupon.discount_value,
+      type: coupon.type,
     }));
   }
 
@@ -1650,7 +1721,6 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
     await classProgram.save();
 
     // 3- update user model and push course session to `course_session_enrollments`
-
     const userModel = await User.findById(newOrder.userId);
     if (!userModel) {
       throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
@@ -1671,11 +1741,30 @@ const createCourseSessionOrder = async ({ requestBody, user }) => {
       // console.log('validCouponsIds', validCouponsIds);
       // console.log('order.appliedCoupons', order.appliedCoupons);
 
-      await applyCoupons(validCouponsIds);
+      await applyCoupons(validCouponsIds, {
+        currentUser: user,
+        orderId: newOrder?._id || newOrder?.id,
+        order_total_amount: newOrder.program_original_price,
+        order_variant: 'COURSE_SESSION',
+      });
       // eslint-disable-next-line no-console
       // console.log('appliedCoupons', appliedCoupons);
       // return {appliedCoupons}
     }
+
+    // Apply Refferal code if exist
+    // const referralCode = coupons?.valid.find((coupon) => coupon.type === 'REFERRAL');
+
+    // // use the referral code if exists
+    // if (referralCode) {
+    //   await couponCodeService.useReferralCode({
+    //     referralCode,
+    //     currentUser: user,
+    //     orderId: newOrder?._id || newOrder?.id,
+    //     order_total_amount: newOrder.program_original_price,
+    //     order_variant: 'COURSE_SESSION',
+    //   });
+    // }
 
     // use user wallet amount
     if (newOrder.usedUserWalletAmount > 0) {
@@ -1799,6 +1888,7 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
   let totalDiscount = 0;
 
   const couponResult = await checkCouponForCourseSession({
+    currentUser: user,
     couponCodes,
     order_variant: 'COURSE_SESSION',
     orderItems: courseSessionclassProgram,
@@ -1876,6 +1966,8 @@ const calculateOrderSummary = async ({ user, classProgramId, couponCodes = [], p
               code: c.code,
               discount_type: c.discount_type,
               discount_value: c.discount_value,
+              type: c.type,
+              created_by: c.created_by,
             }))
           : [],
       invalid: couponResult?.invalidCoupons || [],
@@ -2010,7 +2102,12 @@ const validateCheckoutCourseSessionOrder = async ({ orderId, user, Authority: au
       // console.log('validCouponsIds', validCouponsIds);
       // console.log('order.appliedCoupons', order.appliedCoupons);
 
-      const appliedCoupons = await applyCoupons(validCouponsIds);
+      const appliedCoupons = await applyCoupons(validCouponsIds, {
+        currentUser: userModel,
+        orderId: order._id,
+        order_total_amount: order.program_original_price,
+        order_variant: 'COURSE_SESSION',
+      });
       // eslint-disable-next-line no-console
       console.log('appliedCoupons', appliedCoupons);
     }

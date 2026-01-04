@@ -44,11 +44,19 @@ const couponCodeSchema = new Schema(
     },
     valid_from: {
       type: Date,
-      default: Date.now,
+      default: () => {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        return yesterday;
+      },
     },
     valid_until: {
       type: Date,
-      required: true,
+      default: () => {
+        const threeYearsFromNow = new Date();
+        threeYearsFromNow.setFullYear(threeYearsFromNow.getFullYear() + 3);
+        return threeYearsFromNow;
+      },
     },
     min_purchase_amount: {
       type: Number,

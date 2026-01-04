@@ -33,6 +33,7 @@ const notificationSchema = new mongoose.Schema(
         'promotional',
         'announcement',
         'order_status_update',
+        'referral_reward',
       ],
       required: true,
       index: true,

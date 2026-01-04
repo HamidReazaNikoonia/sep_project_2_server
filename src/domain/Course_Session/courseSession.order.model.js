@@ -76,6 +76,10 @@ const courseSessionOrderSchema = new mongoose.Schema(
           type: Number,
           required: true,
         },
+        type: {
+          type: String,
+          required: true,
+        },
       },
     ],
     paymentMethod: {

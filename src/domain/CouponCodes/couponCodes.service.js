@@ -6,6 +6,9 @@ const httpStatus = require('http-status');
 const { CouponJS } = require('couponjs');
 const ApiError = require('../../utils/ApiError');
 const CouponCode = require('./couponCodes.model');
+const Referral = require('./referral.model');
+const User = require('../../models/user.model');
+const { sendReferralRewardNotification } = require('../Notification/notification.service');
 
 /**
  * Create multiple coupon codes with performance optimization
@@ -289,7 +292,7 @@ const validateAndApplyCoupon = async (code, originalPrice, courseId = null) => {
  * @param {Object} orderItems - Object containing products and courses arrays
  * @returns {Object} - Valid coupons, invalid coupons with reasons, and total discount
  */
-const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems }) => {
+const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems, currentUser }) => {
   const validCoupons = [];
   const invalidCoupons = [];
   let totalDiscount = 0;
@@ -356,6 +359,19 @@ const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems })
     // Remove all referral coupons from processing
     const referralIds = referralCoupons.map((c) => c._id.toString());
     coupons.splice(0, coupons.length, ...coupons.filter((c) => !referralIds.includes(c._id.toString())));
+  }
+
+  // check for referral code
+  if (referralCoupons.length > 0) {
+    // eslint-disable-next-line no-use-before-define
+    const referalCodeValidation = await validateReferralCode(referralCoupons[0] || null, currentUser);
+    if (!referalCodeValidation.valid) {
+      invalidCoupons.push({
+        couponId: referralCoupons[0]._id,
+        code: referralCoupons[0].code,
+        reason: referalCodeValidation.reason,
+      });
+    }
   }
 
   // Check for is_combined === false restriction
@@ -527,7 +543,7 @@ const checkCoupon = async ({ couponCodes, order_variant = 'ORDER', orderItems })
  * @param {Object} orderItems - Object containing products and courses arrays
  * @returns {Object} - Valid coupons, invalid coupons with reasons, and total discount
  */
-const checkCouponForCourseSession = async ({ couponCodes, order_variant = 'COURSE_SESSION', orderItems }) => {
+const checkCouponForCourseSession = async ({ couponCodes, order_variant = 'COURSE_SESSION', orderItems, currentUser }) => {
   const validCoupons = [];
   const invalidCoupons = [];
   let totalDiscount = 0;
@@ -594,6 +610,19 @@ const checkCouponForCourseSession = async ({ couponCodes, order_variant = 'COURS
     // Remove all referral coupons from processing
     const referralIds = referralCoupons.map((c) => c._id.toString());
     coupons.splice(0, coupons.length, ...coupons.filter((c) => !referralIds.includes(c._id.toString())));
+  }
+
+  // check Refferal codes
+  if (referralCoupons.length > 0) {
+    // eslint-disable-next-line no-use-before-define
+    const referalCodeValidation = await validateReferralCode(referralCoupons[0] || null, currentUser);
+    if (!referalCodeValidation.valid) {
+      invalidCoupons.push({
+        couponId: referralCoupons[0]._id,
+        code: referralCoupons[0].code,
+        reason: referalCodeValidation.reason,
+      });
+    }
   }
 
   // Check for is_combined === false restriction
@@ -910,6 +939,67 @@ const generateReferralCode = async (userId, couponDetails) => {
   return createCouponCode(couponBody);
 };
 
+const validateReferralCode = async (referralCode, currentUser) => {
+  if (!referralCode) {
+    return {
+      valid: false,
+      reason: 'Referral code is null',
+    };
+  }
+  const referral = await Referral.findOne({
+    // The user who owns the referral code
+    referrer: referralCode.created_by,
+    // The user who uses the referral code
+    referee: currentUser?._id || currentUser?.id,
+    status: 'APPROVED',
+  });
+  if (referral) {
+    return {
+      valid: false,
+      reason: 'Referral code is used by this user',
+    };
+  }
+  return {
+    valid: true,
+    reason: 'Referral code is valid',
+  };
+};
+
+const useReferralCode = async ({ referralCode, currentUser, orderId, order_variant, order_total_amount }) => {
+  // 1- calculate reward amount
+  // 2- create referral
+  // 3- charge user wallet amount
+  // 4- send notification to user [referralCode.created_by] about the reward amount
+
+  const rewardAmount = order_total_amount ? Math.floor((order_total_amount * 10) / 100) : 0;
+
+  const referral = await Referral.create({
+    referrer: referralCode.created_by,
+    referee: currentUser?._id || currentUser?.id,
+    referral_code_used: referralCode.code,
+    discount_amount: referralCode.discount_value,
+    order: orderId,
+    order_variant,
+    reward_amount: rewardAmount,
+    status: 'APPROVED',
+  });
+
+  // 4- charge user wallet amount
+  const user = await User.findById(referralCode.created_by);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+  user.wallet_amount += rewardAmount;
+  await user.save();
+
+  // 5- send notification to user [referralCode.created_by] about the reward amount
+  await sendReferralRewardNotification(referralCode.created_by, referral._id, {
+    reward_amount: rewardAmount,
+  });
+
+  return referral;
+};
+
 module.exports = {
   createMultipleCoupons,
   createCouponCode,
@@ -923,4 +1013,5 @@ module.exports = {
   checkCoupon,
   checkCouponForCourseSession,
   calculateCouponDiscount,
+  useReferralCode,
 };

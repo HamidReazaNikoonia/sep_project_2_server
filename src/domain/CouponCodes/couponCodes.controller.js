@@ -88,24 +88,24 @@ const applyCoupon = catchAsync(async (req, res) => {
   });
 });
 
-const generateReferralCode = catchAsync(async (req, res) => {
-  // Assuming user is authenticated and userId is available in req.user.id
-  if (!req.user || !req.user.id) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'User must be authenticated');
-  }
+// const generateReferralCode = catchAsync(async (req, res) => {
+//   // Assuming user is authenticated and userId is available in req.user.id
+//   if (!req.user || !req.user.id) {
+//     throw new ApiError(httpStatus.UNAUTHORIZED, 'User must be authenticated');
+//   }
 
-  const couponDetails = pick(req.body, [
-    'discount_type',
-    'discount_value',
-    'max_uses',
-    'valid_until',
-    'min_purchase_amount',
-    'applicable_courses',
-  ]);
+//   const couponDetails = pick(req.body, [
+//     'discount_type',
+//     'discount_value',
+//     'max_uses',
+//     'valid_until',
+//     'min_purchase_amount',
+//     'applicable_courses',
+//   ]);
 
-  const referralCode = await couponCodeService.generateReferralCode(req.user.id, couponDetails);
-  res.status(httpStatus.CREATED).send(referralCode);
-});
+//   const referralCode = await couponCodeService.generateReferralCode(req.user.id, couponDetails);
+//   res.status(httpStatus.CREATED).send(referralCode);
+// });
 
 module.exports = {
   createCouponCode,
@@ -115,5 +115,5 @@ module.exports = {
   deleteCouponCode,
   validateCoupon,
   applyCoupon,
-  generateReferralCode,
+  // generateReferralCode,
 };

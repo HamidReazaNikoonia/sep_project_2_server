@@ -13,12 +13,16 @@ const cartModel = require('./../Cart/cart.model');
 const Transaction = require('../../Transaction/transaction.model');
 const { Course: courseModel } = require('../../Course/course.model');
 const UserModel = require('../../../models/user.model');
+// const Referral = require('../../CouponCodes/referral.model');
 
 // Utils
 const ApiError = require('../../../utils/ApiError');
 const APIFeatures = require('../../../utils/APIFeatures');
 const ZarinpalCheckout = require('../../../services/payment');
 const config = require('../../../config/config');
+
+// services
+const couponCodeService = require('../../CouponCodes/couponCodes.service');
 
 // Notification service
 const {
@@ -788,6 +792,7 @@ const calculateOrderSummary = async ({ cartId, user, couponCodes = [], useUserWa
       couponCodes,
       order_variant: 'ORDER',
       orderItems,
+      currentUser: user,
     });
 
     // Check minimum purchase amount for each valid coupon
@@ -842,6 +847,8 @@ const calculateOrderSummary = async ({ cartId, user, couponCodes = [], useUserWa
           code: c.code,
           discount_type: c.discount_type,
           discount_value: c.discount_value,
+          type: c.type,
+          created_by: c.created_by,
         })),
         invalidCoupons: couponResult.invalidCoupons,
         totalDiscount: couponResult.totalDiscount,
@@ -1136,6 +1143,20 @@ const createOrderByUser = async ({ cartId, user, shippingAddress, couponCodes = 
   // if the `totalAmount` is 0 or less than 1000, we need to throw an error
   // then we dont need for create Transaction and paymebnt method, just change the order status to `paid`
   if (newOrder.totalAmount <= 0 || newOrder.totalAmount < 1000) {
+    // apply referral code
+    const referralCode = validatedAppliedCoupons.find((coupon) => coupon.type === 'REFERRAL');
+
+    // use the referral code if exists
+    if (referralCode) {
+      await couponCodeService.useReferralCode({
+        referralCode,
+        currentUser: user,
+        orderId: newOrder?._id || newOrder?.id,
+        order_total_amount: newOrder.total,
+        order_variant: 'ORDER',
+      });
+    }
+
     // use the coupon if exist
     if (preOrderSummary?.couponInfo?.validCoupons?.length > 0) {
       const couponIds = preOrderSummary.couponInfo.validCoupons.map((coupon) => coupon.id);
@@ -1442,7 +1463,22 @@ const checkoutOrder = async ({ orderId, Authority: authorityCode, Status: paymen
     if (order.appliedCoupons && order.appliedCoupons.length > 0) {
       const validCouponsIds = order.appliedCoupons.map((coupon) => coupon.couponId.toString());
       const coupons = await CouponCode.find({ _id: { $in: validCouponsIds } });
+
       await Promise.all(coupons.map((coupon) => coupon.use()));
+
+      // apply referral code
+      const referralCode = coupons.find((coupon) => coupon.type === 'REFERRAL');
+
+      // use the referral code if exists
+      if (referralCode) {
+        await couponCodeService.useReferralCode({
+          referralCode,
+          currentUser: order.customer,
+          orderId: order._id,
+          order_total_amount: order.total,
+          order_variant: 'ORDER',
+        });
+      }
     }
 
     // update user wallet amount

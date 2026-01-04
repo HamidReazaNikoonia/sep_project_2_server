@@ -826,6 +826,32 @@ const sendTicketReplyNotification = async (userId, ticketId, ticketDetails = {})
   return createNotification(notificationData);
 };
 
+/**
+ * Send referral reward notification
+ * @param {ObjectId} userId
+ * @param {ObjectId} referralId
+ * @param {Object} referralDetails
+ */
+const sendReferralRewardNotification = async (userId, referralId, referralDetails = {}) => {
+
+  const notificationData = {
+    customer: userId,
+    notification_type: 'referral_reward',
+    priority: 'urgent',
+    title: 'شارژ حساب کاربری',
+    message: `شارژ حساب کاربری شما با موفقیت انجام شد. مبلغ: ${referralDetails?.reward_amount || 'نامشخص'} تومان`,
+    channels: ['in_app', 'sms'],
+    state: {
+      referral_id: referralId,
+    },
+    sender: {
+      type: 'system',
+    },
+  };
+
+  return createNotification(notificationData);
+};
+
 module.exports = {
   createNotification,
   queryNotifications,
@@ -853,4 +879,7 @@ module.exports = {
   sendSessionCancellationNotification,
   sendNewSessionAnnouncementNotification,
   sendTicketReplyNotification,
+
+  // Referral code notifications
+  sendReferralRewardNotification,
 };
